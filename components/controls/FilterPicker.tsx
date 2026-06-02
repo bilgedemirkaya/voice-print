@@ -98,7 +98,12 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
             <li key={scene.id}>
               <button
                 type="button"
-                onClick={() => setActiveScene(scene.id)}
+                onClick={() => {
+                  if (scene.id !== activeScene) {
+                    setActiveScene(scene.id);
+                    setDirty(true);
+                  }
+                }}
                 className={cn(
                   "w-full px-2 py-1 text-left",
                   scene.id === activeScene

@@ -72,11 +72,15 @@ describe("FilterPicker", () => {
     await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
   });
 
-  it("selecting a screensaver sets the active scene", async () => {
+  it("selecting a screensaver sets the active scene and enables Apply", async () => {
     const user = userEvent.setup();
     render(<FilterPicker />);
+    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+
     await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
+
     expect(useAudioStore.getState().activeScene).toBe("mystify");
+    expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
   });
 
   it("a slider updates voiceSettings", async () => {
