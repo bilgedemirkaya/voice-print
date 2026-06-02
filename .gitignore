@@ -1,0 +1,28 @@
+# dependencies
+/node_modules
+/mcp-server/node_modules
+.pnpm-store
+
+# next.js
+/.next
+/out
+
+# production / build
+/build
+/mcp-server/dist
+
+# test
+/coverage
+
+# env
+.env
+.env*.local
+
+# runtime audio temp store
+/.tmp
+
+# misc
+*.log
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts

@@ -1,0 +1,263 @@
+# CLAUDE.md
+
+> Project guide for **VOICESCREEN.SCR** — a retro-90s Microsoft-screensaver-style voice visualizer with ElevenLabs voice transformation, wired through an MCP server.
+>
+> This file is the single source of truth for how the project is built and why. Read it before writing code.
+
+---
+
+## 1. What this is
+
+A portfolio piece. The headline goal is **not** "a screensaver app" — it's to demonstrate two skills convincingly:
+
+1. **Frontend / UI-UX craft** — a polished, tasteful recreation of the Windows 95/98 desktop aesthetic married to real-time WebGL audio-reactive visuals. The work should look intentional and designed, not like a default Bootstrap page with a teal background.
+2. **MCP server integration** — voice transformation is not called directly from a fetch in a React component. It goes through a custom **Model Context Protocol (MCP) server** that exposes ElevenLabs operations as tools.
+
+Everything below serves those two goals. When a decision is ambiguous, pick the option that better *shows the skill*.
+
+---
+
+## 2. The core concept
+
+The user records their voice **once**. From that single recording the app produces a live visual representation — a 90s-screensaver-style animation whose motion, color palette, and waveform are driven by the audio.
+
+The user then applies **voice filters** (ElevenLabs voice transformations: e.g. robotic, deep, chipmunk, "radio announcer", etc.). Each filter re-renders the audio through ElevenLabs, and the new audio drives a visibly different animation — different palette, different energy, different waveform shape.
+
+So the loop is:
+
+```
+record once → analyze → visualize
+        ↓
+pick a filter
+        ↓
+MCP tool → ElevenLabs voice transform
+        ↓
+new audio → re-analyze → animation changes
+```
+
+The "wow" moment is that **changing the voice visibly changes the animation**. The user hears a different voice and simultaneously sees the screensaver respond.
+
+### Iterated idea (recommended additions)
+
+These extend the brief without changing its spirit. Treat as opt-in:
+
+- **Named presets as "screensavers"** — each filter maps to a named retro scene (e.g. "MYSTIFY", "STARFIELD", "PIPES"), shown in a fake Display Properties dialog. This frames filter-switching as picking a screensaver, which sells the theme.- **Shareable "voiceprint"** — export the final state as a short looping video or a generated retro "About this voice" card.
+
+---
+
+## 3. Tech stack
+
+| Concern | Choice | Notes |
+|---|---|---|
+| Framework | **Next.js (App Router) + TypeScript** | Server routes handle secrets + heavy audio work. |
+| Rendering | **Three.js via `@react-three/fiber`** + `@react-three/drei` | r3f gives a clean React DX for the scenes. Plain three.js is fine if a scene needs imperative control. |
+| Audio analysis | **Web Audio API** (`AnalyserNode`) | FFT + time-domain data drive the visuals. No external lib needed. |
+| Voice transform | **ElevenLabs API** (Speech-to-Speech / Voice Changer) | The core integration. Called *via the MCP server*, not directly from the client. |
+| Integration layer | **MCP server** (`@modelcontextprotocol/sdk`, TypeScript) | Exposes ElevenLabs ops as MCP tools. The portfolio centerpiece. || Styling | **Tailwind CSS** + a small hand-written 95/98 component layer | Don't pull in a heavy retro-UI kit and call it done; build the chrome yourself to show craft. |
+| State | **Zustand** | Single store for audio state, active filter, animation params. |
+| Animation polish | **Framer Motion** (UI only, not the canvas) | Window open/close, dialog transitions. |
+
+> `three.js (maybe)` from the brief → **resolved to yes**, via react-three-fiber. The audio-reactive WebGL scene is what makes the FE work impressive.
+
+---
+
+## 4. Architecture
+
+Three layers, deliberately separated so the MCP boundary is real and not cosmetic.
+
+```
+┌─────────────────────────────────────────────┐
+│  Frontend (Next.js / React / r3f)            │
+│  - 95/98 desktop UI                          │
+│  - mic capture (MediaRecorder)               │
+│  - Web Audio analysis → animation params     │
+│  - Three.js scene reacts in real time        │
+└───────────────┬─────────────────────────────┘
+                │ HTTP (Next.js API routes)
+                ▼
+┌─────────────────────────────────────────────┐
+│  Next.js server (API routes / Route Handlers)│
+│  - holds the ElevenLabs key                  │
+│  - audio upload + temp storage               │
+│  - acts as MCP CLIENT to the MCP server      │
+└───────────────┬─────────────────────────────┘
+                │ MCP (stdio or HTTP/SSE transport)
+                ▼
+┌─────────────────────────────────────────────┐
+│  MCP server (standalone Node process)        │
+│  - tools: list_voices, transform_voice, ...  │
+│  - wraps ElevenLabs SDK                       │
+│  - returns audio handles, not giant blobs    │
+└─────────────────────────────────────────────┘
+```
+
+**Why this shape:** the MCP server is a genuine, reusable integration that could be plugged into Claude Desktop or any MCP host — that's the point. The Next.js server is the MCP *client*. The browser never sees an API key and never calls ElevenLabs directly.
+
+**Audio data, not blobs, over MCP:** MCP tools should not shuttle multi-MB base64 audio back and forth. The MCP server writes converted audio to a shared temp store (local disk in dev, blob storage in prod) and returns a **handle/URL + metadata**. The frontend fetches the audio from a Next.js route by handle.
+
+---
+
+## 5. Voice → visual mapping (the spec that matters most)
+
+This is where FE credibility lives. Don't hand-wave it.
+
+From the `AnalyserNode` each frame, compute:
+
+- **RMS / overall volume** → global energy (motion amplitude, particle speed, line jitter).
+- **Band energies** (split FFT into low / mid / high) → low = background pulse & scale, mid = primary motion, high = sparkle / sharpness.
+- **Spectral centroid** ("brightness") → drives **hue**. Darker voice → cooler palette; brighter → warmer/hotter palette.
+- **Zero-crossing rate** → roughness / glitch amount.
+- **Time-domain buffer** → the literal waveform line (used directly in Mystify-style scenes).
+
+Map these to a small, well-typed `AnimationParams` object the scenes consume:
+
+```ts
+type AnimationParams = {
+  energy: number;        // 0..1  global intensity
+  bass: number;          // 0..1
+  mid: number;           // 0..1
+  treble: number;        // 0..1
+  brightness: number;    // 0..1  → hue
+  roughness: number;     // 0..1  → glitch/jitter
+  palette: [string, string, string]; // derived swatch
+  waveform: Float32Array;
+};
+```
+
+Each scene reads `AnimationParams`; switching filters changes the audio, which changes the params, which changes the scene. Keep the analysis pure and the scenes dumb consumers — this keeps it testable and lets filters "tune" the visuals by changing the audio, not by reaching into Three.js.
+
+### Scenes to build (retro screensaver homages — original implementations, no MS assets)
+
+1. **MYSTIFY** — bouncing polylines with trailing afterimages; vertices jitter by `energy`, palette by `brightness`. (Best default.)
+2. **STARFIELD** — warp-speed star streaks; speed by `energy`, color by band split.
+3. **PIPES** — growing 3D pipe network; growth rate by `bass`.
+4. **WAVEFIELD** — a displaced plane/mesh terrain driven directly by FFT bins (most clearly "voice-shaped").
+
+Ship MYSTIFY + WAVEFIELD first; the other two are stretch.
+
+---
+
+## 6. ElevenLabs integration
+
+- Core endpoint: **Speech-to-Speech / Voice Changer** (record → convert to a target voice, preserving cadence/emotion).
+- Also use **list voices** to populate the filter picker.
+- Expose voice **settings** (stability, similarity, style) as advanced sliders; changing them re-runs the conversion.
+- Treat conversion as **request/response** for v1 (record → convert → play converted clip with live visualization). Real-time streaming STS is a stretch goal — do not block on it.
+- All ElevenLabs calls live **only** inside the MCP server. The key is read from the MCP server's env, never shipped to the browser.
+
+> Note: ElevenLabs' exact endpoint names, model IDs, and limits change. **Verify against current ElevenLabs docs before implementing** rather than trusting any specifics memorized here.
+
+---
+
+## 7. MCP server design
+
+Standalone Node/TypeScript process using `@modelcontextprotocol/sdk`. Start with stdio transport for local dev; expose HTTP/SSE for the deployed app.
+
+### Tools
+
+| Tool | Input | Output | Purpose |
+|---|---|---|---|
+| `list_voices` | `{}` | array of `{id, name, labels}` | Populate filter picker. |
+| `get_voice_settings` | `{ voiceId }` | settings object | Show/seed sliders. |
+| `transform_voice` | `{ audioHandle, targetVoiceId, settings? }` | `{ resultHandle, durationMs, voiceId }` | The main op: convert recorded audio. |
+Keep tool schemas strict (zod). Tools return **handles**, never raw audio. Document each tool's schema in the server's README so it reads as a real, reusable MCP server.
+---
+
+## 8. Directory structure
+
+```
+/app                      Next.js App Router
+  /api
+    /audio/[handle]       serve audio by handle (GET)
+    /transform            client → server → MCP client call
+  /(desktop)/page.tsx     the "desktop" entry
+/components
+  /retro                  hand-built 95/98 chrome (Window, Button, Dialog, TaskBar)
+  /scenes                 r3f scenes (Mystify, Starfield, Pipes, Wavefield)
+  /controls               recorder, filter picker, sliders
+/lib
+  /audio                  analyser, feature extraction, params mapping
+  /mcp-client             wraps MCP client used by API routes
+  /store                  zustand store
+/mcp-server               standalone MCP server (own package.json)
+  /tools                  one file per tool
+  index.ts                server bootstrap
+```
+
+---
+
+## 9. Commands
+
+```bash
+# install
+pnpm install
+
+# dev (frontend + next server)
+pnpm dev
+
+# run MCP server standalone (stdio)
+pnpm --filter mcp-server dev
+
+# typecheck / lint / format
+pnpm typecheck
+pnpm lint
+pnpm format
+
+# build
+pnpm build
+```
+
+> Confirm package manager (`pnpm` assumed) and adjust scripts when scaffolding.
+
+---
+
+## 10. Conventions
+
+- **TypeScript strict**, no `any` in committed code.
+- Audio feature extraction is **pure functions** — no React, no Three.js — so it can be unit-tested.
+- Scenes consume `AnimationParams` and own no audio logic.
+- Secrets live in env only on the server / MCP server. The browser never holds a key.
+- Retro UI is **hand-built** in `/components/retro`; do not lean on a prebuilt 98.css clone as the whole deliverable (you may reference one for spacing, but the craft must be yours).
+- Accessibility: the retro look should not break keyboard nav, focus rings, or reduced-motion. Respect `prefers-reduced-motion` by damping the canvas.
+- Performance: cap the canvas at the display refresh, throttle analysis to ~60fps, dispose Three.js resources on scene switch.
+
+---
+
+## 11. UI/UX direction
+
+The aesthetic is **Windows 95/98 desktop**, done with restraint and polish:
+
+- Beveled buttons, title bars with the classic gradient, a taskbar with a Start button and clock.
+- The visualizer lives inside a draggable "window"; the filter picker is a fake **Display Properties → Screen Saver** dialog.
+- CRT touches (subtle scanlines, slight vignette) — tasteful, toggleable, off under reduced-motion.
+- Type: a clean MS-Sans-style face for chrome; keep body text legible.
+- Color: classic desktop teal as the canvas background, but the *visualization* palette comes from the voice.
+
+The bar to clear: a designer should look at it and believe it was deliberately art-directed.
+
+---
+
+## 12. Build order (milestones)
+
+1. **Skeleton** — Next.js + TS + Tailwind; retro Window/Button/TaskBar shells.
+2. **Record + analyze** — mic capture, `AnalyserNode`, feature extraction → `AnimationParams`. Prove it with a debug readout.
+3. **First scene** — Wavefield reacting live to the params.
+4. **MCP server** — `list_voices`, `transform_voice` against ElevenLabs; return handles.
+5. **Wire the loop** — record → transform via MCP → fetch result → re-analyze → animation changes.
+6. **Filter picker UI** — the Screen Saver dialog; named presets ↔ voices/scenes.
+7. **Polish** — Mystify scene, CRT, transitions, reduced-motion, export.
+8. **Stretch** — Starfield + Pipes; shareable export video.
+
+A reviewer should find something impressive by milestone 5; everything after is depth.
+
+---
+
+## 13. Open decisions (flag, don't silently assume)
+
+- ~~**Real-time vs offline conversion**~~ — **RESOLVED: v1 is offline** (record → send to ElevenLabs → get converted clip back → play with live visualization; a normal request/response, still network-dependent). Real-time streaming STS is explicitly out of scope for v1; revisit only as a stretch goal.
+- **Where converted audio is stored** — local disk (dev) vs a blob store (prod). Affects the handle scheme.
+- ~~**Agent in scope or not**~~ — **RESOLVED: out of scope.** The Anthropic-driven NL agent layer and the `suggest_filter` tool have been removed; filter selection is via named presets only. The standalone MCP server remains the integration centerpiece.
+- **How many scenes ship** — two is enough to be impressive; four is the ceiling.
+- **ElevenLabs cost/limits** — confirm free-tier quota is enough for a portfolio demo, or gate transforms behind a soft limit.
+
+When you resolve one of these, update this file. CLAUDE.md should always reflect the current intended design.

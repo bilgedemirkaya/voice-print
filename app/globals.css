@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  /* Classic Windows desktop teal. The visualization palette comes from the voice (CLAUDE.md §11). */
+  --desktop-teal: #008080;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--desktop-teal);
+  font-family: "MS Sans Serif", "Segoe UI", Tahoma, system-ui, sans-serif;
+}
