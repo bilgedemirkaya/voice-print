@@ -170,7 +170,7 @@ Keep tool schemas strict (zod). Tools return **handles**, never raw audio. Docum
   /api
     /audio/[handle]       serve audio by handle (GET)
     /transform            client → server → MCP client call
-  /(desktop)/page.tsx     the "desktop" entry
+  page.tsx                the "desktop" entry (served at /)
 /components
   /retro                  hand-built 95/98 chrome (Window, Button, Dialog, TaskBar)
   /scenes                 r3f scenes (Mystify, Starfield, Pipes, Wavefield)

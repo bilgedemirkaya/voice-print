@@ -83,7 +83,7 @@ M3 and M4 can be built in parallel once M2 exists. M4 (MCP server) has **no fron
 - A draggable `Window` with classic title-bar gradient, min/close controls.
 - `TaskBar` with Start button + live clock.
 - Beveled `Button` with pressed/focus states.
-- `/(desktop)/page.tsx` renders the desktop: teal background, one Window, the TaskBar.
+- `app/page.tsx` renders the desktop: teal background, one Window, the TaskBar.
 - Respects `prefers-reduced-motion`; visible focus rings; tab order works.
 
 **Test in isolation**
@@ -98,7 +98,7 @@ in /components/retro: Window (draggable, title-bar gradient, min/close),
 Button (beveled, pressed + focus states), Dialog (modal, focus-trapped, Escape
 to close), TaskBar (Start button + live clock). Hand-build the 95/98 styling
 with Tailwind + a small CSS layer — no prebuilt 98.css kit as the deliverable.
-Wire /(desktop)/page.tsx to show a teal desktop with one Window and the TaskBar.
+Wire app/page.tsx to show a teal desktop with one Window and the TaskBar.
 Honor prefers-reduced-motion, keep focus rings, and ensure full keyboard nav.
 ```
 

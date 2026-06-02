@@ -1,8 +1,50 @@
 @import "tailwindcss";
 
-:root {
-  /* Classic Windows desktop teal. The visualization palette comes from the voice (CLAUDE.md §11). */
-  --desktop-teal: #008080;
+/* Windows 95/98 chrome, unicorn-pastel palette — see CLAUDE.md §11. */
+@theme {
+  --color-w95-teal: #bfe6ff; /* legacy token name; soft sky */
+  --color-w95-silver: #ece3fb; /* panel / button surface (lavender) */
+  --color-w95-gray: #9b8fb3; /* disabled / muted text */
+  --color-w95-darkgray: #5b4a7a; /* secondary text (deep plum) */
+  --color-w95-navy: #9b51e0; /* accent / selection (unicorn purple) */
+  --font-w95: "MS Sans Serif", "Pixelated MS Sans Serif", "Segoe UI", Tahoma, system-ui, sans-serif;
+}
+
+/* Raised (outset) bevel — lavender-tinted edges keep the 3D feel without harsh black. */
+@utility bevel-raised {
+  box-shadow:
+    inset -1px -1px #3a2a5a,
+    inset 1px 1px #ffffff,
+    inset -2px -2px #b9a9d6,
+    inset 2px 2px #fbf4ff;
+}
+
+/* Pressed bevel — reverses the light/dark edges. */
+@utility bevel-pressed {
+  box-shadow:
+    inset 1px 1px #3a2a5a,
+    inset -1px -1px #ffffff,
+    inset 2px 2px #b9a9d6,
+    inset -2px -2px #fbf4ff;
+}
+
+/* Sunken (inset) bevel — content wells, status fields, the clock. */
+@utility bevel-inset {
+  box-shadow:
+    inset 1px 1px #b9a9d6,
+    inset -1px -1px #ffffff,
+    inset 2px 2px #3a2a5a,
+    inset -2px -2px #fbf4ff;
+}
+
+/* Unicorn title-bar gradient (replaces the old navy → cyan). */
+@utility titlebar {
+  background-image: linear-gradient(90deg, #ff7ec7 0%, #a878ff 50%, #5cb8ff 100%);
+}
+
+/* Pastel "sky" desktop background. */
+@utility desktop-bg {
+  background-image: linear-gradient(160deg, #ffc8e6 0%, #dabbff 38%, #bcd6ff 72%, #c4f1ff 100%);
 }
 
 html,
@@ -12,6 +54,8 @@ body {
 
 body {
   margin: 0;
-  background-color: var(--desktop-teal);
-  font-family: "MS Sans Serif", "Segoe UI", Tahoma, system-ui, sans-serif;
+  background: linear-gradient(160deg, #ffc8e6 0%, #dabbff 38%, #bcd6ff 72%, #c4f1ff 100%) fixed;
+  font-family: var(--font-w95);
+  font-size: 14px;
+  color: #2d2342;
 }
