@@ -6,13 +6,16 @@ import { Button } from "@/components/retro/Button";
 import { Dialog } from "@/components/retro/Dialog";
 import { TaskBar } from "@/components/retro/TaskBar";
 import { Window } from "@/components/retro/Window";
-
-const SCREENSAVERS = ["MYSTIFY", "WAVEFIELD", "STARFIELD", "PIPES"] as const;
+import { Recorder } from "@/components/controls/Recorder";
+import { FilterPicker } from "@/components/controls/FilterPicker";
+import { SceneView } from "@/components/scenes/registry";
+import { useAudioStore } from "@/lib/store/audioStore";
 
 export default function DesktopPage() {
   const [windowOpen, setWindowOpen] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
+  const activeScene = useAudioStore((s) => s.activeScene);
 
   return (
     <main className="desktop-bg relative min-h-screen overflow-hidden">
@@ -27,10 +30,11 @@ export default function DesktopPage() {
               onClose={() => setWindowOpen(false)}
             >
               <div className="flex flex-col gap-3">
-                <div className="flex aspect-video items-center justify-center bevel-inset bg-[#1a1033] text-xs text-w95-silver">
-                  audio-reactive canvas arrives in M3
+                <div className="relative aspect-video overflow-hidden bevel-inset bg-[#140a28]">
+                  <SceneView scene={activeScene} />
                 </div>
-                <div className="flex justify-end">
+                <div className="flex items-end justify-between gap-2">
+                  <Recorder />
                   <Button onClick={() => setDialogOpen(true)}>Display Properties…</Button>
                 </div>
               </div>
@@ -40,21 +44,7 @@ export default function DesktopPage() {
       </div>
 
       <Dialog open={dialogOpen} title="Display Properties" onClose={() => setDialogOpen(false)}>
-        <div className="flex flex-col gap-3">
-          <p className="text-sm font-bold">Screen Saver</p>
-          <div className="bevel-inset bg-white p-2 text-sm">
-            <ul className="space-y-1">
-              {SCREENSAVERS.map((name) => (
-                <li key={name}>{name}</li>
-              ))}
-            </ul>
-          </div>
-          <p className="text-xs text-w95-darkgray">Wired to voices &amp; scenes in M6.</p>
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => setDialogOpen(false)}>OK</Button>
-            <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          </div>
-        </div>
+        <FilterPicker />
       </Dialog>
 
       {startOpen && (

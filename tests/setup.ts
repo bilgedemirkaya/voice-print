@@ -3,14 +3,9 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 
-// We import test APIs explicitly (globals off), so RTL's auto-cleanup doesn't
-// register itself — unmount between tests here to avoid DOM leaking across tests.
-afterEach(() => {
-  cleanup();
-});
-
-// jsdom doesn't implement matchMedia; Framer Motion's useReducedMotion needs it.
-if (!window.matchMedia) {
+// jsdom-only: Framer Motion's useReducedMotion needs matchMedia. Guarded so node-env
+// test files (// @vitest-environment node) can share this setup file without crashing.
+if (typeof window !== "undefined" && !window.matchMedia) {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: (query: string) => ({
@@ -25,3 +20,7 @@ if (!window.matchMedia) {
     }),
   });
 }
+
+afterEach(() => {
+  if (typeof document !== "undefined") cleanup();
+});

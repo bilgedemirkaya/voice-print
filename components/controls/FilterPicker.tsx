@@ -1,0 +1,134 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Button } from "@/components/retro/Button";
+import { SCENES } from "@/components/scenes/registry";
+import { useTransform } from "@/components/controls/useTransform";
+import { useAudioStore, type VoiceSettings } from "@/lib/store/audioStore";
+import { cn } from "@/lib/cn";
+
+type Voice = { id: string; name: string; labels: Record<string, string> };
+
+const SLIDERS: Array<{ key: keyof VoiceSettings; label: string }> = [
+  { key: "stability", label: "Stability" },
+  { key: "similarity_boost", label: "Similarity" },
+  { key: "style", label: "Style" },
+];
+
+/**
+ * The fake Display Properties → Screen Saver dialog body (CLAUDE.md §2, §6, §11):
+ * pick a screensaver scene, a target voice, and tune the voice settings, then Apply to convert.
+ */
+export function FilterPicker() {
+  const activeScene = useAudioStore((s) => s.activeScene);
+  const setActiveScene = useAudioStore((s) => s.setActiveScene);
+  const targetVoiceId = useAudioStore((s) => s.targetVoiceId);
+  const setTargetVoiceId = useAudioStore((s) => s.setTargetVoiceId);
+  const voiceSettings = useAudioStore((s) => s.voiceSettings);
+  const setVoiceSettings = useAudioStore((s) => s.setVoiceSettings);
+  const recordedBlob = useAudioStore((s) => s.recordedBlob);
+  const transforming = useAudioStore((s) => s.transforming);
+  const transformError = useAudioStore((s) => s.transformError);
+
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [voicesError, setVoicesError] = useState<string | null>(null);
+  const transform = useTransform();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/voices");
+        const data = (await res.json()) as { voices?: Voice[]; error?: string };
+        if (!res.ok || !data.voices) throw new Error(data.error ?? "Failed to load voices");
+        if (cancelled) return;
+        setVoices(data.voices);
+        if (!useAudioStore.getState().targetVoiceId && data.voices[0]) {
+          setTargetVoiceId(data.voices[0].id);
+        }
+      } catch (err) {
+        if (!cancelled) setVoicesError(err instanceof Error ? err.message : "Failed to load voices");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [setTargetVoiceId]);
+
+  return (
+    <div className="flex flex-col gap-3 text-xs">
+      <div>
+        <p className="mb-1 font-bold">Screen Saver</p>
+        <ul className="bevel-inset max-h-32 overflow-auto bg-white">
+          {SCENES.map((scene) => (
+            <li key={scene.id}>
+              <button
+                type="button"
+                onClick={() => setActiveScene(scene.id)}
+                className={cn(
+                  "w-full px-2 py-1 text-left",
+                  scene.id === activeScene
+                    ? "bg-w95-navy text-white"
+                    : "hover:bg-w95-navy/20 focus-visible:bg-w95-navy/20",
+                )}
+              >
+                {scene.name}
+                {!scene.implemented && <span className="opacity-60"> (soon)</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <label className="flex items-center gap-2">
+        <span className="w-16">Voice</span>
+        <select
+          value={targetVoiceId}
+          onChange={(event) => setTargetVoiceId(event.target.value)}
+          className="bevel-inset flex-1 bg-white px-1 py-0.5"
+        >
+          {voices.length === 0 && <option value="">{voicesError ? "no voices" : "loading…"}</option>}
+          {voices.map((voice) => (
+            <option key={voice.id} value={voice.id}>
+              {voice.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="flex flex-col gap-1.5">
+        <p className="font-bold">Settings</p>
+        {SLIDERS.map(({ key, label }) => (
+          <label key={key} className="flex items-center gap-2">
+            <span className="w-16">{label}</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={voiceSettings[key]}
+              onChange={(event) =>
+                setVoiceSettings({ ...voiceSettings, [key]: Number(event.target.value) })
+              }
+              className="flex-1"
+            />
+            <span className="w-8 text-right tabular-nums">{voiceSettings[key].toFixed(2)}</span>
+          </label>
+        ))}
+      </div>
+
+      {voicesError && <p className="text-[#b00020]">{voicesError}</p>}
+      {transformError && <p className="text-[#b00020]">{transformError}</p>}
+      {!recordedBlob && <p className="text-w95-darkgray">Record a clip first, then Apply.</p>}
+
+      <div className="flex justify-end">
+        <Button
+          onClick={() => void transform()}
+          disabled={transforming || !recordedBlob || !targetVoiceId}
+        >
+          {transforming ? "Applying…" : "Apply"}
+        </Button>
+      </div>
+    </div>
+  );
+}

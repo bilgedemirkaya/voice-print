@@ -1,7 +1,21 @@
-import { NextResponse } from "next/server";
+import { contentTypeForHandle, readAudio } from "@/lib/store/audioFiles";
 
-// Placeholder — serves converted audio by handle (GET). Implemented in M5.
-// See CLAUDE.md §4, §8 and ROADMAP.md M5.
-export function GET(): NextResponse {
-  return NextResponse.json({ error: "Not implemented" }, { status: 501 });
+// Streams converted (or source) audio from the shared store by handle. See CLAUDE.md §4.
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ handle: string }> },
+): Promise<Response> {
+  const { handle } = await params;
+  try {
+    const data = await readAudio(handle);
+    return new Response(new Uint8Array(data), {
+      headers: {
+        "Content-Type": contentTypeForHandle(handle),
+        "Content-Length": String(data.byteLength),
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch {
+    return new Response("Not found", { status: 404 });
+  }
 }
