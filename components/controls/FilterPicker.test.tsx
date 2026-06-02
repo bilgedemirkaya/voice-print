@@ -34,6 +34,9 @@ function resetStore() {
     transformError: null,
     crtEnabled: true,
     dirty: false,
+    voices: [],
+    voicesStatus: "idle",
+    voicesError: null,
   });
 }
 

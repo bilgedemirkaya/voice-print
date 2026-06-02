@@ -16,6 +16,10 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   style: 0,
 };
 
+export type Voice = { id: string; name: string; labels: Record<string, string> };
+
+export type VoicesStatus = "idle" | "loading" | "ready" | "error";
+
 type AudioState = {
   // live analysis
   params: AnimationParams;
@@ -33,6 +37,10 @@ type AudioState = {
   crtEnabled: boolean;
   // whether settings have changed since the last Apply (drives the Apply button)
   dirty: boolean;
+  // voices, fetched once and cached
+  voices: Voice[];
+  voicesStatus: VoicesStatus;
+  voicesError: string | null;
 
   setParams: (params: AnimationParams) => void;
   setRecording: (recording: boolean) => void;
@@ -45,10 +53,12 @@ type AudioState = {
   setTransformError: (error: string | null) => void;
   setCrtEnabled: (enabled: boolean) => void;
   setDirty: (dirty: boolean) => void;
+  /** Fetch voices once and cache them; no-op if already loading/ready. */
+  loadVoices: () => Promise<void>;
 };
 
 /** Single source of truth for live audio-reactive state + filter selection (CLAUDE.md §3). */
-export const useAudioStore = create<AudioState>()((set) => ({
+export const useAudioStore = create<AudioState>()((set, get) => ({
   params: silentParams(),
   recording: false,
   activeScene: "wavefield",
@@ -60,6 +70,9 @@ export const useAudioStore = create<AudioState>()((set) => ({
   transformError: null,
   crtEnabled: true,
   dirty: false,
+  voices: [],
+  voicesStatus: "idle",
+  voicesError: null,
 
   setParams: (params) => set({ params }),
   setRecording: (recording) => set({ recording }),
@@ -72,4 +85,25 @@ export const useAudioStore = create<AudioState>()((set) => ({
   setTransformError: (transformError) => set({ transformError }),
   setCrtEnabled: (crtEnabled) => set({ crtEnabled }),
   setDirty: (dirty) => set({ dirty }),
+  loadVoices: async () => {
+    const status = get().voicesStatus;
+    if (status === "loading" || status === "ready") return;
+    set({ voicesStatus: "loading", voicesError: null });
+    try {
+      const res = await fetch("/api/voices");
+      const data = (await res.json()) as { voices?: Voice[]; error?: string };
+      if (!res.ok || !data.voices) throw new Error(data.error ?? "Failed to load voices");
+      const voices = data.voices;
+      set((s) => ({
+        voices,
+        voicesStatus: "ready",
+        targetVoiceId: s.targetVoiceId || voices[0]?.id || "",
+      }));
+    } catch (err) {
+      set({
+        voicesStatus: "error",
+        voicesError: err instanceof Error ? err.message : "Failed to load voices",
+      });
+    }
+  },
 }));

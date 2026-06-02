@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/retro/Button";
 import { Dialog } from "@/components/retro/Dialog";
@@ -21,6 +21,30 @@ export default function DesktopPage() {
   const activeScene = useAudioStore((s) => s.activeScene);
   const crtEnabled = useAudioStore((s) => s.crtEnabled);
   const reducedMotion = useReducedMotion();
+  const loadVoices = useAudioStore((s) => s.loadVoices);
+  const voicesStatus = useAudioStore((s) => s.voicesStatus);
+  const [pendingOpen, setPendingOpen] = useState(false);
+
+  // Prefetch voices once so the settings dialog can open instantly later.
+  useEffect(() => {
+    void loadVoices();
+  }, [loadVoices]);
+
+  // Open the settings dialog only once voices have settled — avoids an empty/loading flash.
+  const openSettings = () => {
+    if (voicesStatus === "ready" || voicesStatus === "error") {
+      setDialogOpen(true);
+    } else {
+      setPendingOpen(true);
+      void loadVoices();
+    }
+  };
+  useEffect(() => {
+    if (pendingOpen && (voicesStatus === "ready" || voicesStatus === "error")) {
+      setDialogOpen(true);
+      setPendingOpen(false);
+    }
+  }, [pendingOpen, voicesStatus]);
 
   return (
     <main className="desktop-bg relative min-h-screen overflow-hidden">
@@ -49,8 +73,10 @@ export default function DesktopPage() {
                   <SceneView scene={activeScene} />
                 </div>
                 <div className="flex shrink-0 items-end justify-between gap-2">
-                  <Recorder onRecorded={() => setDialogOpen(true)} />
-                  <Button onClick={() => setDialogOpen(true)}>Display Properties…</Button>
+                  <Recorder onRecorded={openSettings} />
+                  <Button onClick={openSettings} disabled={pendingOpen}>
+                    {pendingOpen ? "Loading voices…" : "Display Properties…"}
+                  </Button>
                 </div>
               </div>
             </Window>
@@ -86,7 +112,7 @@ export default function DesktopPage() {
                 label: "Display Properties…",
                 icon: "🎨",
                 onClick: () => {
-                  setDialogOpen(true);
+                  openSettings();
                   setStartOpen(false);
                 },
               },

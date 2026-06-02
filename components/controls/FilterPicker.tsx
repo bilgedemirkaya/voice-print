@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Button } from "@/components/retro/Button";
 import { SCENES } from "@/components/scenes/registry";
 import { useTransform } from "@/components/controls/useTransform";
 import { exportVoiceCard } from "@/components/controls/exportCard";
 import { useAudioStore, type VoiceSettings } from "@/lib/store/audioStore";
 import { cn } from "@/lib/cn";
-
-type Voice = { id: string; name: string; labels: Record<string, string> };
 
 const SLIDERS: Array<{ key: keyof VoiceSettings; label: string }> = [
   { key: "stability", label: "Stability" },
@@ -34,33 +32,18 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const palette = useAudioStore((s) => s.params.palette);
   const dirty = useAudioStore((s) => s.dirty);
   const setDirty = useAudioStore((s) => s.setDirty);
+  const voices = useAudioStore((s) => s.voices);
+  const voicesError = useAudioStore((s) => s.voicesError);
+  const loadVoices = useAudioStore((s) => s.loadVoices);
 
-  const [voices, setVoices] = useState<Voice[]>([]);
-  const [voicesError, setVoicesError] = useState<string | null>(null);
   const transform = useTransform();
   const sceneName = SCENES.find((s) => s.id === activeScene)?.name ?? activeScene;
   const voiceName = voices.find((v) => v.id === targetVoiceId)?.name ?? targetVoiceId;
 
+  // No-op if already cached; otherwise fetches once.
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/voices");
-        const data = (await res.json()) as { voices?: Voice[]; error?: string };
-        if (!res.ok || !data.voices) throw new Error(data.error ?? "Failed to load voices");
-        if (cancelled) return;
-        setVoices(data.voices);
-        if (!useAudioStore.getState().targetVoiceId && data.voices[0]) {
-          setTargetVoiceId(data.voices[0].id);
-        }
-      } catch (err) {
-        if (!cancelled) setVoicesError(err instanceof Error ? err.message : "Failed to load voices");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [setTargetVoiceId]);
+    void loadVoices();
+  }, [loadVoices]);
 
   return (
     <div className="flex flex-col gap-3 text-xs">
