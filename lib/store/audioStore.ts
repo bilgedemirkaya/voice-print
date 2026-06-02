@@ -35,6 +35,7 @@ type AudioState = {
   transformError: string | null;
   // display
   crtEnabled: boolean;
+  soundEnabled: boolean;
   // whether settings have changed since the last Apply (drives the Apply button)
   dirty: boolean;
   // voices, fetched once and cached
@@ -52,6 +53,7 @@ type AudioState = {
   setTransforming: (transforming: boolean) => void;
   setTransformError: (error: string | null) => void;
   setCrtEnabled: (enabled: boolean) => void;
+  setSoundEnabled: (enabled: boolean) => void;
   setDirty: (dirty: boolean) => void;
   /** Fetch voices once and cache them; no-op if already loading/ready. */
   loadVoices: () => Promise<void>;
@@ -69,6 +71,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   transforming: false,
   transformError: null,
   crtEnabled: true,
+  soundEnabled: true,
   dirty: false,
   voices: [],
   voicesStatus: "idle",
@@ -84,6 +87,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   setTransforming: (transforming) => set({ transforming }),
   setTransformError: (transformError) => set({ transformError }),
   setCrtEnabled: (crtEnabled) => set({ crtEnabled }),
+  setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
   setDirty: (dirty) => set({ dirty }),
   loadVoices: async () => {
     const status = get().voicesStatus;

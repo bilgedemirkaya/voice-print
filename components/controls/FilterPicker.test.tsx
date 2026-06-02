@@ -11,6 +11,7 @@ vi.mock("@/components/scenes/registry", () => ({
     { id: "starfield", name: "STARFIELD", implemented: false },
     { id: "pipes", name: "PIPES", implemented: false },
   ],
+  SceneView: () => null,
 }));
 
 import { FilterPicker } from "./FilterPicker";
@@ -33,6 +34,7 @@ function resetStore() {
     transforming: false,
     transformError: null,
     crtEnabled: true,
+    soundEnabled: true,
     dirty: false,
     voices: [],
     voicesStatus: "idle",
@@ -161,5 +163,14 @@ describe("FilterPicker", () => {
     expect(checkbox).toBeChecked();
     await user.click(checkbox);
     expect(useAudioStore.getState().crtEnabled).toBe(false);
+  });
+
+  it("toggles sounds", async () => {
+    const user = userEvent.setup();
+    render(<FilterPicker />);
+    const checkbox = await screen.findByRole("checkbox", { name: /sounds/i });
+    expect(checkbox).toBeChecked();
+    await user.click(checkbox);
+    expect(useAudioStore.getState().soundEnabled).toBe(false);
   });
 });

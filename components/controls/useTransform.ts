@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useAudioStore } from "@/lib/store/audioStore";
+import { sfx } from "@/lib/sfx";
 
 /** Turn ElevenLabs' raw error JSON into a short, friendly message. */
 function friendlyError(message: string): string {
@@ -46,6 +47,7 @@ export function useTransform() {
       state.setConvertedUrl(`/api/audio/${data.resultHandle}`);
     } catch (err) {
       state.setTransformError(friendlyError(err instanceof Error ? err.message : "Transform failed"));
+      sfx.error();
     } finally {
       state.setTransforming(false);
     }

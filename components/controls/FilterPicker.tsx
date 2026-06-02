@@ -2,9 +2,10 @@
 
 import { useEffect } from "react";
 import { Button } from "@/components/retro/Button";
-import { SCENES } from "@/components/scenes/registry";
+import { SCENES, SceneView } from "@/components/scenes/registry";
 import { useTransform } from "@/components/controls/useTransform";
 import { exportVoiceCard } from "@/components/controls/exportCard";
+import { sfx } from "@/lib/sfx";
 import { useAudioStore, type VoiceSettings } from "@/lib/store/audioStore";
 import { cn } from "@/lib/cn";
 
@@ -29,7 +30,8 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const transformError = useAudioStore((s) => s.transformError);
   const crtEnabled = useAudioStore((s) => s.crtEnabled);
   const setCrtEnabled = useAudioStore((s) => s.setCrtEnabled);
-  const palette = useAudioStore((s) => s.params.palette);
+  const soundEnabled = useAudioStore((s) => s.soundEnabled);
+  const setSoundEnabled = useAudioStore((s) => s.setSoundEnabled);
   const dirty = useAudioStore((s) => s.dirty);
   const setDirty = useAudioStore((s) => s.setDirty);
   const voices = useAudioStore((s) => s.voices);
@@ -47,27 +49,19 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
 
   return (
     <div className="flex flex-col gap-3 text-xs">
-      {/* CRT monitor preview — glows with the voice's live palette (CLAUDE.md §11). */}
+      {/* CRT monitor — a live preview of the selected screensaver (CLAUDE.md §11). */}
       <div className="flex justify-center">
         <div className="bevel-raised bg-w95-silver p-2">
           <div className="bevel-inset relative aspect-[4/3] w-40 overflow-hidden bg-[#0a0618]">
+            <SceneView scene={activeScene} />
             <div
-              className="absolute inset-0"
-              style={{
-                background: `linear-gradient(135deg, ${palette[0]}, ${palette[1]}, ${palette[2]})`,
-                opacity: 0.65,
-              }}
-            />
-            <div
-              className="absolute inset-0"
+              className="pointer-events-none absolute inset-0"
               style={{
                 background: "repeating-linear-gradient(0deg, rgba(0,0,0,0.28) 0 1px, transparent 1px 3px)",
               }}
             />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-[10px] font-bold tracking-[0.2em] text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.7)]">
-                {sceneName}
-              </span>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/45 text-center text-[9px] font-bold tracking-[0.2em] text-white">
+              {sceneName}
             </div>
           </div>
           <div className="mx-auto mt-1 h-1.5 w-12 bevel-raised bg-w95-gray" />
@@ -143,14 +137,24 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
         ))}
       </div>
 
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={crtEnabled}
-          onChange={(event) => setCrtEnabled(event.target.checked)}
-        />
-        <span>CRT effect</span>
-      </label>
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={crtEnabled}
+            onChange={(event) => setCrtEnabled(event.target.checked)}
+          />
+          <span>CRT effect</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={soundEnabled}
+            onChange={(event) => setSoundEnabled(event.target.checked)}
+          />
+          <span>Sounds</span>
+        </label>
+      </div>
 
       {voicesError && <p className="text-[#b00020]">{voicesError}</p>}
       {transformError && <p className="text-[#b00020]">{transformError}</p>}
@@ -165,6 +169,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
         </Button>
         <Button
           onClick={() => {
+            sfx.apply();
             void transform();
             setDirty(false);
             onApplied?.();

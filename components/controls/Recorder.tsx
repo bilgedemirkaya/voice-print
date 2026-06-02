@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/retro/Button";
+import { VuMeter } from "@/components/controls/VuMeter";
+import { sfx } from "@/lib/sfx";
 import { createAudioAnalyser, type AudioAnalyser } from "@/lib/audio/analyser";
 import { useAudioStore } from "@/lib/store/audioStore";
 
@@ -103,6 +105,7 @@ export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
       recorder.start();
       setStatus("recording");
       setRecording(true);
+      sfx.record();
     } catch (err) {
       setMicError(err instanceof Error ? err.message : "Microphone access failed");
       setStatus("idle");
@@ -112,6 +115,7 @@ export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
   const stop = useCallback(() => {
     recorderRef.current?.stop();
     setRecording(false);
+    sfx.stop();
   }, [setRecording]);
 
   const handlePlay = useCallback(() => {
@@ -170,6 +174,8 @@ export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
         )}
         <span className="text-w95-darkgray">{STATUS_LABEL[status]}</span>
       </div>
+
+      {(status === "recording" || isPlaying) && <VuMeter />}
 
       {micError && <p className="text-[#b00020]">{micError}</p>}
       {transforming && <p className="text-w95-darkgray">Transforming…</p>}

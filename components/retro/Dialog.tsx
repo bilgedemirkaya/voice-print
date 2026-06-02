@@ -91,17 +91,17 @@ export function Dialog({ open, title, onClose, children, className }: DialogProp
             exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.12, ease: "easeOut" }}
             className={cn(
-              "w-[360px] max-w-[90vw] bevel-raised bg-w95-silver text-black outline-none drop-shadow-[0_16px_32px_rgba(120,70,180,0.4)]",
+              "flex max-h-[90vh] w-[360px] max-w-[90vw] flex-col bevel-raised bg-w95-silver text-black outline-none drop-shadow-[0_16px_32px_rgba(120,70,180,0.4)]",
               className,
             )}
           >
-            <div className="titlebar flex items-center gap-1 px-1 py-0.5">
+            <div className="titlebar flex shrink-0 items-center gap-1 px-1 py-0.5">
               <span className="flex-1 truncate px-1 text-sm font-bold text-white [text-shadow:0_1px_1px_rgba(74,28,110,0.55)]">
                 {title}
               </span>
               <TitleBarButton label="Close" glyph="✕" onClick={onClose} />
             </div>
-            <div className="p-3">{children}</div>
+            <div className="overflow-auto p-3">{children}</div>
           </motion.div>
         </motion.div>
       )}

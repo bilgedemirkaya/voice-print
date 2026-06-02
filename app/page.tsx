@@ -7,11 +7,25 @@ import { Dialog } from "@/components/retro/Dialog";
 import { TaskBar } from "@/components/retro/TaskBar";
 import { Window } from "@/components/retro/Window";
 import { CrtOverlay } from "@/components/retro/CrtOverlay";
+import { BootSplash } from "@/components/retro/BootSplash";
 import { Recorder } from "@/components/controls/Recorder";
 import { FilterPicker } from "@/components/controls/FilterPicker";
 import { SceneView } from "@/components/scenes/registry";
 import { useAudioStore } from "@/lib/store/audioStore";
 import { cn } from "@/lib/cn";
+import { sfx } from "@/lib/sfx";
+
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const update = (): void => setMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return mobile;
+}
 
 export default function DesktopPage() {
   const [windowOpen, setWindowOpen] = useState(true);
@@ -24,6 +38,10 @@ export default function DesktopPage() {
   const loadVoices = useAudioStore((s) => s.loadVoices);
   const voicesStatus = useAudioStore((s) => s.voicesStatus);
   const [pendingOpen, setPendingOpen] = useState(false);
+  const isMobile = useIsMobile();
+  const fullscreen = maximized || isMobile; // mobile is always maximized
+
+
 
   // Prefetch voices once so the settings dialog can open instantly later.
   useEffect(() => {
@@ -33,6 +51,7 @@ export default function DesktopPage() {
   // Open the settings dialog only once voices have settled — avoids an empty/loading flash.
   const openSettings = () => {
     if (voicesStatus === "ready" || voicesStatus === "error") {
+      sfx.open();
       setDialogOpen(true);
     } else {
       setPendingOpen(true);
@@ -48,21 +67,21 @@ export default function DesktopPage() {
 
   return (
     <main className="desktop-bg relative min-h-screen overflow-hidden">
-      <div className={maximized ? "absolute inset-2 bottom-12" : "absolute left-4 top-4"}>
+      <div className={fullscreen ? "absolute inset-2 bottom-12" : "absolute left-4 top-4"}>
         <AnimatePresence>
           {windowOpen && (
             <Window
               key="visualizer"
               title="VOICESCREEN.SCR — Visualizer"
-              resizable={!maximized}
-              fill={maximized}
+              resizable={!fullscreen}
+              fill={fullscreen}
               maximized={maximized}
               width={880}
               height={560}
               minWidth={420}
               minHeight={320}
               onMinimize={() => setWindowOpen(false)}
-              onMaximize={() => setMaximized((m) => !m)}
+              onMaximize={isMobile ? undefined : () => setMaximized((m) => !m)}
               onClose={() => {
                 setMaximized(false);
                 setWindowOpen(false);
@@ -72,7 +91,7 @@ export default function DesktopPage() {
                 <div className="relative min-h-0 flex-1 overflow-hidden bevel-inset bg-[#140a28]">
                   <SceneView scene={activeScene} />
                 </div>
-                <div className="flex shrink-0 items-end justify-between gap-2">
+                <div className="flex shrink-0 flex-wrap items-end justify-between gap-2">
                   <Recorder onRecorded={openSettings} />
                   <Button onClick={openSettings} disabled={pendingOpen}>
                     {pendingOpen ? "Loading voices…" : "Display Properties…"}
@@ -152,6 +171,7 @@ export default function DesktopPage() {
       </TaskBar>
 
       <CrtOverlay enabled={crtEnabled && !reducedMotion} />
+      <BootSplash />
     </main>
   );
 }
