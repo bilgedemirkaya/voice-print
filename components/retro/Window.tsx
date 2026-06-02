@@ -10,28 +10,47 @@ export type WindowProps = {
   children: ReactNode;
   onClose?: () => void;
   onMinimize?: () => void;
+  onMaximize?: () => void;
+  maximized?: boolean;
   initialPosition?: { x: number; y: number };
   width?: number;
+  height?: number;
+  /** Show a bottom-right grip to resize the window. */
+  resizable?: boolean;
+  minWidth?: number;
+  minHeight?: number;
+  /** Fill the parent container (maximized): no drag/resize, no fixed size. */
+  fill?: boolean;
   className?: string;
 };
 
 /**
- * Draggable Win95 window. Drag is initiated only from the title bar; position is
- * held in Framer motion values so dragging never triggers a React re-render.
- * Open/close uses a subtle scale/opacity transition, damped under reduced-motion.
+ * Draggable (and optionally resizable) Win95 window. Position/size are held in Framer motion
+ * values so interaction never triggers React re-renders. Open/close fades + scales, damped under
+ * reduced-motion. With `fill` it maximizes to its parent instead.
  */
 export function Window({
   title,
   children,
   onClose,
   onMinimize,
+  onMaximize,
+  maximized = false,
   initialPosition = { x: 0, y: 0 },
   width = 480,
+  height = 420,
+  resizable = false,
+  minWidth = 320,
+  minHeight = 240,
+  fill = false,
   className,
 }: WindowProps) {
   const x = useMotionValue(initialPosition.x);
   const y = useMotionValue(initialPosition.y);
+  const w = useMotionValue(width);
+  const h = useMotionValue(height);
   const drag = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
+  const resize = useRef<{ px: number; py: number; ow: number; oh: number } | null>(null);
   const reduce = useReducedMotion();
 
   function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
@@ -52,16 +71,44 @@ export function Window({
     event.currentTarget.releasePointerCapture?.(event.pointerId);
   }
 
+  function handleResizeDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    resize.current = { px: event.clientX, py: event.clientY, ow: w.get(), oh: h.get() };
+  }
+
+  function handleResizeMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const state = resize.current;
+    if (!state) return;
+    w.set(Math.max(minWidth, state.ow + event.clientX - state.px));
+    h.set(Math.max(minHeight, state.oh + event.clientY - state.py));
+  }
+
+  function handleResizeUp(event: ReactPointerEvent<HTMLDivElement>) {
+    resize.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }
+
+  // When maximized, set explicit 100% size + reset position. Using `undefined` here would leave
+  // Framer's previously-applied inline width/height/transform in place (window wouldn't grow).
+  const motionStyle = fill
+    ? { x: 0, y: 0, width: "100%", height: "100%" }
+    : resizable
+      ? { x, y, width: w, height: h }
+      : { x, y, width };
+
   return (
     <motion.section
       aria-label={title}
-      style={{ x, y, width }}
+      style={motionStyle}
       initial={reduce ? false : { opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.97 }}
       transition={{ duration: 0.12, ease: "easeOut" }}
       className={cn(
-        "bevel-raised select-none bg-w95-silver text-black drop-shadow-[0_12px_24px_rgba(120,70,180,0.35)]",
+        "relative flex flex-col bevel-raised select-none bg-w95-silver text-black drop-shadow-[0_12px_24px_rgba(120,70,180,0.35)]",
+        fill && "h-full w-full",
         className,
       )}
     >
@@ -70,17 +117,38 @@ export function Window({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        className="titlebar flex cursor-default items-center gap-1 px-1 py-0.5"
+        className="titlebar flex shrink-0 cursor-default items-center gap-1 px-1 py-0.5"
       >
         <span className="flex-1 truncate px-1 text-sm font-bold text-white [text-shadow:0_1px_1px_rgba(74,28,110,0.55)]">
           {title}
         </span>
         {onMinimize && <TitleBarButton label="Minimize" glyph="_" onClick={onMinimize} />}
+        {onMaximize && (
+          <TitleBarButton
+            label={maximized ? "Restore" : "Maximize"}
+            glyph={maximized ? "❐" : "□"}
+            onClick={onMaximize}
+          />
+        )}
         {onClose && <TitleBarButton label="Close" glyph="✕" onClick={onClose} />}
       </div>
-      <div className="p-1">
-        <div className="bevel-inset bg-w95-silver p-3">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col p-1">
+        <div className="flex min-h-0 flex-1 flex-col bevel-inset bg-w95-silver p-3">{children}</div>
       </div>
+      {resizable && !fill && (
+        <div
+          aria-hidden
+          title="Drag to resize"
+          onPointerDown={handleResizeDown}
+          onPointerMove={handleResizeMove}
+          onPointerUp={handleResizeUp}
+          className="absolute bottom-0.5 right-0.5 h-[18px] w-[18px] cursor-nwse-resize"
+          style={{
+            background:
+              "repeating-linear-gradient(135deg, transparent 0 2px, #ffffff 2px 3px, transparent 3px 4px, #5b4a7a 4px 5px)",
+          }}
+        />
+      )}
     </motion.section>
   );
 }

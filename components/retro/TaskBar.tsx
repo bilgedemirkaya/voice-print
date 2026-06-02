@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "./Button";
 
 function formatTime(date: Date): string {
@@ -8,7 +8,13 @@ function formatTime(date: Date): string {
 }
 
 /** Win95 taskbar: Start button (with the four-color flag) on the left, a live clock on the right. */
-export function TaskBar({ onStartClick }: { onStartClick?: () => void }) {
+export function TaskBar({
+  onStartClick,
+  children,
+}: {
+  onStartClick?: () => void;
+  children?: ReactNode;
+}) {
   // Start empty so the server render and the first client render match; fill in the
   // time only after mount to avoid a Date-based hydration mismatch.
   const [time, setTime] = useState<string | null>(null);
@@ -31,7 +37,7 @@ export function TaskBar({ onStartClick }: { onStartClick?: () => void }) {
         </span>
         Start
       </Button>
-      <div className="flex-1" />
+      <div className="flex flex-1 items-center gap-1 overflow-hidden px-1">{children}</div>
       <div className="bevel-inset px-3 py-1 text-xs tabular-nums" role="status" aria-label="Clock">
         <time suppressHydrationWarning>{time ?? " "}</time>
       </div>

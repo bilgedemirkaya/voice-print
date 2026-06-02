@@ -69,5 +69,5 @@ export function Starfield() {
     return () => cancelAnimationFrame(raf);
   }, [reduced]);
 
-  return <canvas ref={canvasRef} width={W} height={H} className="h-full w-full" />;
+  return <canvas ref={canvasRef} width={W} height={H} className="h-full w-full object-contain" />;
 }

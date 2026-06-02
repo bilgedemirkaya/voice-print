@@ -14,13 +14,23 @@ const STATUS_LABEL: Record<Status, string> = {
   recorded: "Recorded — open Display Properties to apply a voice",
 };
 
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 /**
- * Records the mic (live analysis), stores the clip for the picker to transform, and plays the
- * converted clip back through the analyser so the scene reacts to the new voice (M5/M6).
+ * Records the mic (live analysis), stores the clip for the picker, and plays the converted clip
+ * back through the analyser. The converted clip uses a hand-built retro player (no native chrome).
  */
-export function Recorder() {
+export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
   const [status, setStatus] = useState<Status>("idle");
   const [micError, setMicError] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const contextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -57,7 +67,6 @@ export function Recorder() {
     };
   }, []);
 
-  // When a fresh conversion arrives, try to play it (best-effort — controls allow manual replay).
   useEffect(() => {
     if (convertedUrl) {
       requestAnimationFrame(() => void convertedElRef.current?.play().catch(() => undefined));
@@ -89,6 +98,7 @@ export function Recorder() {
         micAnalyserRef.current?.stop();
         streamRef.current?.getTracks().forEach((track) => track.stop());
         setStatus("recorded");
+        onRecorded?.();
       };
       recorder.start();
       setStatus("recording");
@@ -97,14 +107,14 @@ export function Recorder() {
       setMicError(err instanceof Error ? err.message : "Microphone access failed");
       setStatus("idle");
     }
-  }, [ensureContext, setParams, setRecording, setRecordedBlob]);
+  }, [ensureContext, setParams, setRecording, setRecordedBlob, onRecorded]);
 
   const stop = useCallback(() => {
     recorderRef.current?.stop();
     setRecording(false);
   }, [setRecording]);
 
-  const handleConvertedPlay = useCallback(() => {
+  const handlePlay = useCallback(() => {
     const context = ensureContext();
     const element = convertedElRef.current;
     if (!element) return;
@@ -117,11 +127,30 @@ export function Recorder() {
     }
     if (context.state === "suspended") void context.resume();
     playbackAnalyserRef.current.start();
+    setIsPlaying(true);
   }, [ensureContext, setParams]);
 
-  const handleConvertedStop = useCallback(() => {
+  const handleStop = useCallback(() => {
     playbackAnalyserRef.current?.stop();
+    setIsPlaying(false);
   }, []);
+
+  const togglePlay = useCallback(() => {
+    const element = convertedElRef.current;
+    if (!element) return;
+    if (element.paused) void element.play().catch(() => undefined);
+    else element.pause();
+  }, []);
+
+  const seek = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    const element = convertedElRef.current;
+    if (!element || !Number.isFinite(element.duration)) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    element.currentTime = fraction * element.duration;
+  }, []);
+
+  const progress = duration > 0 ? currentTime / duration : 0;
 
   return (
     <div className="flex flex-col gap-2 text-xs">
@@ -133,6 +162,12 @@ export function Recorder() {
             ● Record
           </Button>
         )}
+        {status === "recording" && (
+          <span
+            aria-hidden
+            className="h-2 w-2 shrink-0 rounded-full bg-[#e53935] motion-safe:animate-pulse"
+          />
+        )}
         <span className="text-w95-darkgray">{STATUS_LABEL[status]}</span>
       </div>
 
@@ -141,15 +176,41 @@ export function Recorder() {
       {transformError && <p className="text-[#b00020]">{transformError}</p>}
 
       {convertedUrl && (
-        <audio
-          ref={convertedElRef}
-          src={convertedUrl}
-          controls
-          className="w-full"
-          onPlay={handleConvertedPlay}
-          onEnded={handleConvertedStop}
-          onPause={handleConvertedStop}
-        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={togglePlay}
+            aria-label={isPlaying ? "Pause" : "Play"}
+            className="bevel-raised active:bevel-pressed flex h-6 w-8 items-center justify-center bg-w95-silver text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-dotted focus-visible:outline-black focus-visible:-outline-offset-2"
+          >
+            {isPlaying ? "❚❚" : "▶"}
+          </button>
+          <button
+            type="button"
+            onClick={seek}
+            aria-label="Seek"
+            className="bevel-inset relative h-3 flex-1 cursor-pointer bg-white"
+          >
+            <div
+              className="absolute inset-y-0 left-0 bg-w95-navy"
+              style={{ width: `${progress * 100}%` }}
+            />
+          </button>
+          <span className="w-20 shrink-0 text-right tabular-nums">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
+          <audio
+            ref={convertedElRef}
+            src={convertedUrl}
+            className="hidden"
+            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+            onDurationChange={(e) => setDuration(e.currentTarget.duration)}
+            onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+            onPlay={handlePlay}
+            onPause={handleStop}
+            onEnded={handleStop}
+          />
+        </div>
       )}
     </div>
   );

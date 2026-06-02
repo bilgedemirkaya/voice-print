@@ -33,6 +33,7 @@ function resetStore() {
     transforming: false,
     transformError: null,
     crtEnabled: true,
+    dirty: false,
   });
 }
 
@@ -85,9 +86,16 @@ describe("FilterPicker", () => {
     expect(useAudioStore.getState().voiceSettings.stability).toBe(0.8);
   });
 
-  it("disables Apply until a clip is recorded", async () => {
+  it("disables Apply with no changes, enables it once a setting changes (no recording needed)", async () => {
     render(<FilterPicker />);
-    expect(await screen.findByRole("button", { name: "Apply" })).toBeDisabled();
+    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+
+    fireEvent.change(screen.getByRole("slider", { name: /Stability/ }), {
+      target: { value: "0.8" },
+    });
+
+    expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
   });
 
   it("Apply transforms with the chosen voice + settings and stores the converted URL", async () => {
@@ -95,6 +103,7 @@ describe("FilterPicker", () => {
     useAudioStore.setState({
       recordedBlob: new Blob(["rec"], { type: "audio/webm" }),
       voiceSettings: { stability: 0.7, similarity_boost: 0.9, style: 0.2 },
+      dirty: true,
     });
     render(<FilterPicker />);
     await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
@@ -109,7 +118,7 @@ describe("FilterPicker", () => {
 
   it("shows a friendly message on quota errors", async () => {
     const user = userEvent.setup();
-    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }) });
+    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }), dirty: true });
     transformResponse = () =>
       new Response(
         JSON.stringify({
@@ -129,7 +138,7 @@ describe("FilterPicker", () => {
   it("closes the dialog via onApplied when Apply is clicked", async () => {
     const user = userEvent.setup();
     const onApplied = vi.fn();
-    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }) });
+    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }), dirty: true });
     render(<FilterPicker onApplied={onApplied} />);
     await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
 

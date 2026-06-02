@@ -31,6 +31,8 @@ type AudioState = {
   transformError: string | null;
   // display
   crtEnabled: boolean;
+  // whether settings have changed since the last Apply (drives the Apply button)
+  dirty: boolean;
 
   setParams: (params: AnimationParams) => void;
   setRecording: (recording: boolean) => void;
@@ -42,6 +44,7 @@ type AudioState = {
   setTransforming: (transforming: boolean) => void;
   setTransformError: (error: string | null) => void;
   setCrtEnabled: (enabled: boolean) => void;
+  setDirty: (dirty: boolean) => void;
 };
 
 /** Single source of truth for live audio-reactive state + filter selection (CLAUDE.md §3). */
@@ -56,15 +59,17 @@ export const useAudioStore = create<AudioState>()((set) => ({
   transforming: false,
   transformError: null,
   crtEnabled: true,
+  dirty: false,
 
   setParams: (params) => set({ params }),
   setRecording: (recording) => set({ recording }),
   setActiveScene: (activeScene) => set({ activeScene }),
   setTargetVoiceId: (targetVoiceId) => set({ targetVoiceId }),
   setVoiceSettings: (voiceSettings) => set({ voiceSettings }),
-  setRecordedBlob: (recordedBlob) => set({ recordedBlob }),
+  setRecordedBlob: (recordedBlob) => set({ recordedBlob, dirty: true }),
   setConvertedUrl: (convertedUrl) => set({ convertedUrl }),
   setTransforming: (transforming) => set({ transforming }),
   setTransformError: (transformError) => set({ transformError }),
   setCrtEnabled: (crtEnabled) => set({ crtEnabled }),
+  setDirty: (dirty) => set({ dirty }),
 }));
