@@ -29,6 +29,8 @@ type AudioState = {
   convertedUrl: string | null;
   transforming: boolean;
   transformError: string | null;
+  // display
+  crtEnabled: boolean;
 
   setParams: (params: AnimationParams) => void;
   setRecording: (recording: boolean) => void;
@@ -39,6 +41,7 @@ type AudioState = {
   setConvertedUrl: (url: string | null) => void;
   setTransforming: (transforming: boolean) => void;
   setTransformError: (error: string | null) => void;
+  setCrtEnabled: (enabled: boolean) => void;
 };
 
 /** Single source of truth for live audio-reactive state + filter selection (CLAUDE.md §3). */
@@ -52,6 +55,7 @@ export const useAudioStore = create<AudioState>()((set) => ({
   convertedUrl: null,
   transforming: false,
   transformError: null,
+  crtEnabled: true,
 
   setParams: (params) => set({ params }),
   setRecording: (recording) => set({ recording }),
@@ -62,4 +66,5 @@ export const useAudioStore = create<AudioState>()((set) => ({
   setConvertedUrl: (convertedUrl) => set({ convertedUrl }),
   setTransforming: (transforming) => set({ transforming }),
   setTransformError: (transformError) => set({ transformError }),
+  setCrtEnabled: (crtEnabled) => set({ crtEnabled }),
 }));

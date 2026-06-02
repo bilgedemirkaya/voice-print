@@ -323,45 +323,49 @@ with a real voice id and tell me what to look/listen for. Fix until green.
 
 ## M6 — Filter picker UI (Screen Saver dialog)
 
-**Goal:** A fake **Display Properties → Screen Saver** dialog where named presets ("MYSTIFY", "WAVEFIELD", …) map to voices + scenes and drive the loop (CLAUDE.md §2 iterated idea, §11).
+**Goal:** A fake **Display Properties → Screen Saver** dialog where you pick a named "screensaver" scene + a target voice + voice settings, then apply the conversion (CLAUDE.md §2 iterated idea, §6, §11).
 
 **Deliverables**
-- `/components/controls/FilterPicker.tsx` inside a retro `Dialog`.
-- Presets config: name ↔ `targetVoiceId` ↔ `sceneId` ↔ default settings.
-- Advanced sliders: stability, similarity, style → re-run transform on change (CLAUDE.md §6).
-- Picking a preset triggers the M5 loop and switches the active scene.
+- `/components/controls/FilterPicker.tsx` rendered inside the retro `Dialog`.
+- Named scene list ("WAVEFIELD", "MYSTIFY", …) → sets the active scene in the store; unbuilt scenes show an honest placeholder (real scenes land in M7/M8).
+- Target-voice dropdown populated from `/api/voices` (`list_voices`).
+- Advanced sliders: stability, similarity, style → write `voiceSettings` to the store.
+- An explicit **Apply** button drives the M5 loop with the chosen voice + settings.
+
+> **Decision (deviates from the original brief):** transforms fire on **Apply**, not debounced-on-every-slider-change. Each ElevenLabs conversion costs real credits (100+), so auto-transforming on every tweak would burn quota. Sliders/scene/voice update state instantly; Apply spends credits.
 
 **Test in isolation**
-- Component test: selecting a preset calls the transform handler with the mapped voiceId + settings; changing a slider re-triggers transform (debounced).
-- Uses the M5 loop with ElevenLabs mocked — no real API needed for tests.
-- Manual: open the dialog, pick "WAVEFIELD" vs another preset, confirm voice + scene + palette change.
+- Component test (fetch + store stubbed): loads voices and defaults the target voice; selecting a scene sets `activeScene`; a slider updates `voiceSettings`; **Apply** is disabled until a clip is recorded, then POSTs to `/api/transform` with the chosen voice + settings and stores the converted URL; quota errors render a friendly message.
+- No real API needed — `/api/voices` and `/api/transform` are stubbed.
+- Manual: record, open the dialog, pick a voice + scene, tune sliders, Apply → confirm the converted voice + the scene/palette change.
 
 **Build prompt**
 ```
-Read CLAUDE.md §2 (named presets / Screen Saver framing), §6 (settings sliders),
-§11 (dialog as Display Properties). Build /components/controls/FilterPicker.tsx
-inside the retro Dialog: a list of named presets each mapping to {targetVoiceId,
-sceneId, settings}, populated partly from list_voices. Add advanced sliders for
-stability/similarity/style that re-run the transform (debounced) on change.
-Selecting a preset drives the M5 loop and switches the active scene. Style it as
-a faithful Display Properties → Screen Saver dialog.
+Read CLAUDE.md §2 (Screen Saver framing), §6 (settings sliders), §11 (dialog as
+Display Properties). Build /components/controls/FilterPicker.tsx inside the retro
+Dialog: a named scene list that sets the active scene, a target-voice dropdown
+from /api/voices, and stability/similarity/style sliders that write voiceSettings
+to the store. Drive the M5 loop from an explicit Apply button (not debounced
+auto-transform — conversions cost credits). Style it as a faithful Display
+Properties → Screen Saver dialog.
 ```
 
 **Test prompt**
 ```
-Write component tests for FilterPicker (ElevenLabs mocked via the MCP server):
-- selecting a preset calls transform with the mapped voiceId + default settings
-  and sets the active sceneId in the store.
-- moving a slider re-triggers transform (assert debounce: one call after settling).
-- the preset list renders entries derived from list_voices.
-Run pnpm test + typecheck. Then manually open the dialog, switch presets, and
-confirm voice, scene, and palette all change. Fix until green.
+Write component tests for FilterPicker (fetch + store stubbed):
+- loads voices from /api/voices and defaults the target voice.
+- selecting a scene sets activeScene; a slider updates voiceSettings.
+- Apply is disabled until a clip is recorded; once recorded it POSTs to
+  /api/transform with the chosen voiceId + settings and stores the converted URL.
+- quota errors surface a friendly message.
+Run pnpm test + typecheck. Then manually record, open the dialog, pick a voice +
+scene, tune sliders, Apply, and confirm voice + scene + palette change. Fix until green.
 ```
 
 **Exit criteria**
-- [ ] Preset selection + slider changes drive transforms (tested, debounced).
-- [ ] Presets map name ↔ voice ↔ scene.
-- [ ] Manual: switching presets changes voice + scene + palette.
+- [ ] Scene selection + voice + sliders update store state (tested).
+- [ ] Apply drives a transform with the chosen voice + settings (tested).
+- [ ] Manual: applying a voice changes the converted audio + the scene reacts.
 
 ---
 

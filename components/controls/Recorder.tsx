@@ -36,6 +36,8 @@ export function Recorder() {
   const setRecording = useAudioStore((s) => s.setRecording);
   const setRecordedBlob = useAudioStore((s) => s.setRecordedBlob);
   const convertedUrl = useAudioStore((s) => s.convertedUrl);
+  const transforming = useAudioStore((s) => s.transforming);
+  const transformError = useAudioStore((s) => s.transformError);
 
   const ensureContext = useCallback((): AudioContext => {
     if (!contextRef.current || contextRef.current.state === "closed") {
@@ -135,6 +137,8 @@ export function Recorder() {
       </div>
 
       {micError && <p className="text-[#b00020]">{micError}</p>}
+      {transforming && <p className="text-w95-darkgray">Transforming…</p>}
+      {transformError && <p className="text-[#b00020]">{transformError}</p>}
 
       {convertedUrl && (
         <audio

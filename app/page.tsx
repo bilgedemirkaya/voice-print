@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/retro/Button";
 import { Dialog } from "@/components/retro/Dialog";
 import { TaskBar } from "@/components/retro/TaskBar";
 import { Window } from "@/components/retro/Window";
+import { CrtOverlay } from "@/components/retro/CrtOverlay";
 import { Recorder } from "@/components/controls/Recorder";
 import { FilterPicker } from "@/components/controls/FilterPicker";
 import { SceneView } from "@/components/scenes/registry";
@@ -16,6 +17,8 @@ export default function DesktopPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const activeScene = useAudioStore((s) => s.activeScene);
+  const crtEnabled = useAudioStore((s) => s.crtEnabled);
+  const reducedMotion = useReducedMotion();
 
   return (
     <main className="desktop-bg relative min-h-screen overflow-hidden">
@@ -44,7 +47,7 @@ export default function DesktopPage() {
       </div>
 
       <Dialog open={dialogOpen} title="Display Properties" onClose={() => setDialogOpen(false)}>
-        <FilterPicker />
+        <FilterPicker onApplied={() => setDialogOpen(false)} />
       </Dialog>
 
       {startOpen && (
@@ -82,6 +85,8 @@ export default function DesktopPage() {
       )}
 
       <TaskBar onStartClick={() => setStartOpen((open) => !open)} />
+
+      <CrtOverlay enabled={crtEnabled && !reducedMotion} />
     </main>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/retro/Button";
 import { SCENES } from "@/components/scenes/registry";
 import { useTransform } from "@/components/controls/useTransform";
+import { exportVoiceCard } from "@/components/controls/exportCard";
 import { useAudioStore, type VoiceSettings } from "@/lib/store/audioStore";
 import { cn } from "@/lib/cn";
 
@@ -19,7 +20,7 @@ const SLIDERS: Array<{ key: keyof VoiceSettings; label: string }> = [
  * The fake Display Properties → Screen Saver dialog body (CLAUDE.md §2, §6, §11):
  * pick a screensaver scene, a target voice, and tune the voice settings, then Apply to convert.
  */
-export function FilterPicker() {
+export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const activeScene = useAudioStore((s) => s.activeScene);
   const setActiveScene = useAudioStore((s) => s.setActiveScene);
   const targetVoiceId = useAudioStore((s) => s.targetVoiceId);
@@ -29,10 +30,14 @@ export function FilterPicker() {
   const recordedBlob = useAudioStore((s) => s.recordedBlob);
   const transforming = useAudioStore((s) => s.transforming);
   const transformError = useAudioStore((s) => s.transformError);
+  const crtEnabled = useAudioStore((s) => s.crtEnabled);
+  const setCrtEnabled = useAudioStore((s) => s.setCrtEnabled);
 
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voicesError, setVoicesError] = useState<string | null>(null);
   const transform = useTransform();
+  const sceneName = SCENES.find((s) => s.id === activeScene)?.name ?? activeScene;
+  const voiceName = voices.find((v) => v.id === targetVoiceId)?.name ?? targetVoiceId;
 
   useEffect(() => {
     let cancelled = false;
@@ -117,13 +122,32 @@ export function FilterPicker() {
         ))}
       </div>
 
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={crtEnabled}
+          onChange={(event) => setCrtEnabled(event.target.checked)}
+        />
+        <span>CRT effect</span>
+      </label>
+
       {voicesError && <p className="text-[#b00020]">{voicesError}</p>}
       {transformError && <p className="text-[#b00020]">{transformError}</p>}
       {!recordedBlob && <p className="text-w95-darkgray">Record a clip first, then Apply.</p>}
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
         <Button
-          onClick={() => void transform()}
+          onClick={() =>
+            exportVoiceCard({ params: useAudioStore.getState().params, sceneName, voiceName })
+          }
+        >
+          Export card
+        </Button>
+        <Button
+          onClick={() => {
+            void transform();
+            onApplied?.();
+          }}
           disabled={transforming || !recordedBlob || !targetVoiceId}
         >
           {transforming ? "Applying…" : "Apply"}
