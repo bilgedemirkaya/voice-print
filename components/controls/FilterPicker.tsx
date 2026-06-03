@@ -25,10 +25,6 @@ const VOICE_FILTERS: Array<{ key: string; label: string }> = [
   { key: "descriptive", label: "Vibe" },
 ];
 
-function formatLabel(value: string): string {
-  return value.replace(/_/g, " ");
-}
-
 /**
  * The fake Display Properties → Screen Saver dialog body (CLAUDE.md §2, §6, §11):
  * pick a screensaver scene, a target voice, and tune the voice settings, then Apply to convert.
@@ -36,6 +32,8 @@ function formatLabel(value: string): string {
 export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const activeScene = useAudioStore((s) => s.activeScene);
   const setActiveScene = useAudioStore((s) => s.setActiveScene);
+  const selectedSource = useAudioStore((s) => s.selectedSource);
+  const setConversionScene = useAudioStore((s) => s.setConversionScene);
   const setVoicePalette = useAudioStore((s) => s.setVoicePalette);
   const targetVoiceId = useAudioStore((s) => s.targetVoiceId);
   const setTargetVoiceId = useAudioStore((s) => s.setTargetVoiceId);
@@ -175,7 +173,10 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
                 onClick={() => {
                   if (scene.id !== activeScene) {
                     setActiveScene(scene.id);
-                    setDirty(true);
+                    // Re-skin in place only when editing the selected take itself. Configuring a
+                    // new/other voice must not overwrite the previously-selected take's scene — it
+                    // just sets the scene the next transform will capture.
+                    if (selectedSource === targetVoiceId) setConversionScene(selectedSource, scene.id);
                   }
                 }}
                 className={cn(
@@ -207,7 +208,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
                 <option value="">Any</option>
                 {optionsFor(f.key).map((opt) => (
                   <option key={opt} value={opt}>
-                    {formatLabel(opt)}
+                    {opt.replace(/_/g, " ")}
                   </option>
                 ))}
               </select>

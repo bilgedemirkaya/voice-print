@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useReducedMotion } from "framer-motion";
 import { useAudioStore } from "@/lib/store/audioStore";
+import { fitCanvasCover } from "@/lib/canvasCover";
 import { toastersStyle } from "./toastersStyle";
 
 const W = 640;
@@ -86,6 +87,7 @@ export function Toasters() {
 
     const tick = (): void => {
       raf = requestAnimationFrame(tick);
+      fitCanvasCover(canvas, ctx, W, H); // fill the window, scaling the 640×360 scene up (cover)
       const s = useAudioStore.getState();
       const params = s.voicePalette ? { ...s.params, palette: s.voicePalette } : s.params;
       const style = toastersStyle(params, { reducedMotion: reduced });
@@ -112,5 +114,5 @@ export function Toasters() {
     return () => cancelAnimationFrame(raf);
   }, [reduced]);
 
-  return <canvas ref={canvasRef} width={W} height={H} className="h-full w-full object-contain" />;
+  return <canvas ref={canvasRef} className="block h-full w-full" />;
 }

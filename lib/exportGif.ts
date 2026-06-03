@@ -1,17 +1,7 @@
 import { applyPalette, GIFEncoder, quantize } from "gifenc";
+import { downloadBlob } from "./download";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-function triggerDownload(blob: Blob, name: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
 
 /**
  * Capture the live canvas to a downloadable looping GIF (silent — GIFs carry no audio).
@@ -57,5 +47,5 @@ export async function exportSceneGif(
     if (i % 8 === 0) await sleep(0); // yield so the UI stays responsive while encoding
   }
   gif.finish();
-  triggerDownload(new Blob([gif.bytes()], { type: "image/gif" }), "voiceprint.gif");
+  downloadBlob(new Blob([gif.bytes()], { type: "image/gif" }), "voiceprint.gif");
 }

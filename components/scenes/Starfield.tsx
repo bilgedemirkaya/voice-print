@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useReducedMotion } from "framer-motion";
 import { useAudioStore } from "@/lib/store/audioStore";
+import { fitCanvasCover } from "@/lib/canvasCover";
 import { starfieldStyle } from "./starfieldStyle";
 
 const W = 640;
@@ -36,6 +37,7 @@ export function Starfield() {
     let raf = 0;
     const tick = (): void => {
       raf = requestAnimationFrame(tick);
+      fitCanvasCover(canvas, ctx, W, H); // fill the window, scaling the 640×360 scene up (cover)
       const state = useAudioStore.getState();
       const params = state.voicePalette
         ? { ...state.params, palette: state.voicePalette }
@@ -73,5 +75,5 @@ export function Starfield() {
     return () => cancelAnimationFrame(raf);
   }, [reduced]);
 
-  return <canvas ref={canvasRef} width={W} height={H} className="h-full w-full object-contain" />;
+  return <canvas ref={canvasRef} className="block h-full w-full" />;
 }

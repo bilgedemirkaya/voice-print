@@ -12,7 +12,6 @@ export type WindowProps = {
   onMinimize?: () => void;
   onMaximize?: () => void;
   maximized?: boolean;
-  initialPosition?: { x: number; y: number };
   width?: number;
   height?: number;
   /** Show a bottom-right grip to resize the window. */
@@ -36,7 +35,6 @@ export function Window({
   onMinimize,
   onMaximize,
   maximized = false,
-  initialPosition = { x: 0, y: 0 },
   width = 480,
   height = 420,
   resizable = false,
@@ -45,8 +43,8 @@ export function Window({
   fill = false,
   className,
 }: WindowProps) {
-  const x = useMotionValue(initialPosition.x);
-  const y = useMotionValue(initialPosition.y);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
   const w = useMotionValue(width);
   const h = useMotionValue(height);
   const drag = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);

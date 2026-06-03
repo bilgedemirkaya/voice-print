@@ -31,6 +31,7 @@ function resetStore() {
     voiceSettings: { ...DEFAULT_VOICE_SETTINGS },
     recordedBlob: null,
     conversions: [],
+    selectedSource: "original",
     transforming: false,
     transformError: null,
     crtEnabled: true,
@@ -99,7 +100,7 @@ describe("FilterPicker", () => {
     expect(useAudioStore.getState().voicePalette).not.toBeNull();
   });
 
-  it("selecting a screensaver sets the active scene and enables Apply", async () => {
+  it("selecting a screensaver sets the active scene", async () => {
     const user = userEvent.setup();
     render(<FilterPicker />);
     await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
@@ -107,7 +108,47 @@ describe("FilterPicker", () => {
     await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
 
     expect(useAudioStore.getState().activeScene).toBe("mystify");
-    expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
+  });
+
+  it("changing the screensaver re-skins only the selected take, live", async () => {
+    const user = userEvent.setup();
+    const palette = ["#111", "#222", "#333"] as [string, string, string];
+    useAudioStore.setState({
+      conversions: [
+        { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "wavefield", palette },
+        { voiceId: "v2", voiceName: "Narrator", url: "/b.mp3", sceneId: "starfield", palette },
+      ],
+      selectedSource: "v2", // the take selected in the gallery — and the dialog edits it
+      targetVoiceId: "v2",
+    });
+    render(<FilterPicker />);
+
+    await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
+
+    const convs = useAudioStore.getState().conversions;
+    expect(convs.find((c) => c.voiceId === "v2")?.sceneId).toBe("mystify"); // selected one updated
+    expect(convs.find((c) => c.voiceId === "v1")?.sceneId).toBe("wavefield"); // others untouched
+  });
+
+  it("configuring a different voice does not overwrite the selected take's scene", async () => {
+    const user = userEvent.setup();
+    const palette = ["#111", "#222", "#333"] as [string, string, string];
+    useAudioStore.setState({
+      conversions: [
+        { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "wavefield", palette },
+      ],
+      selectedSource: "v1", // a take is selected…
+      targetVoiceId: "v2", // …but the user navigated to configure a *different* voice
+    });
+    render(<FilterPicker />);
+
+    await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
+
+    // v1 stays as it was; the new scene rides along to v2 only when it's transformed.
+    expect(useAudioStore.getState().conversions.find((c) => c.voiceId === "v1")?.sceneId).toBe(
+      "wavefield",
+    );
+    expect(useAudioStore.getState().activeScene).toBe("mystify");
   });
 
   it("a slider updates voiceSettings", async () => {

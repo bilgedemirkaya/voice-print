@@ -32,7 +32,6 @@ export type VoicesStatus = "idle" | "loading" | "ready" | "error";
 type AudioState = {
   // live analysis
   params: AnimationParams;
-  recording: boolean;
   // scene + voice selection (driven by the Display Properties picker)
   activeScene: SceneId;
   targetVoiceId: string;
@@ -41,6 +40,8 @@ type AudioState = {
   recordedBlob: Blob | null;
   // converted takes of the current recording (one per voice), for the A/B/C compare gallery
   conversions: Conversion[];
+  // which compare tab is selected: "original" or a conversion's voiceId
+  selectedSource: string;
   transforming: boolean;
   transformError: string | null;
   // whether a visualization clip is currently being recorded for export
@@ -66,12 +67,14 @@ type AudioState = {
   voicesError: string | null;
 
   setParams: (params: AnimationParams) => void;
-  setRecording: (recording: boolean) => void;
   setActiveScene: (scene: SceneId) => void;
   setTargetVoiceId: (voiceId: string) => void;
   setVoiceSettings: (settings: VoiceSettings) => void;
   setRecordedBlob: (blob: Blob | null) => void;
   addConversion: (conversion: Conversion) => void;
+  setSelectedSource: (source: string) => void;
+  /** Update one converted take's screensaver in place (live — no re-transform). */
+  setConversionScene: (voiceId: string, sceneId: SceneId) => void;
   setTransforming: (transforming: boolean) => void;
   setTransformError: (error: string | null) => void;
   setExporting: (exporting: boolean) => void;
@@ -92,12 +95,12 @@ type AudioState = {
 /** Single source of truth for live audio-reactive state + filter selection (CLAUDE.md §3). */
 export const useAudioStore = create<AudioState>()((set, get) => ({
   params: silentParams(),
-  recording: false,
   activeScene: "wavefield",
   targetVoiceId: "",
   voiceSettings: DEFAULT_VOICE_SETTINGS,
   recordedBlob: null,
   conversions: [],
+  selectedSource: "original",
   transforming: false,
   transformError: null,
   exporting: false,
@@ -114,13 +117,18 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   voicesError: null,
 
   setParams: (params) => set({ params }),
-  setRecording: (recording) => set({ recording }),
   setActiveScene: (activeScene) => set({ activeScene }),
   setTargetVoiceId: (targetVoiceId) => set({ targetVoiceId }),
   setVoiceSettings: (voiceSettings) => set({ voiceSettings }),
   // a new recording invalidates prior conversions (they were of the old audio)
   setRecordedBlob: (recordedBlob) =>
-    set({ recordedBlob, dirty: true, conversions: [], voicePalette: null }),
+    set({
+      recordedBlob,
+      dirty: true,
+      conversions: [],
+      voicePalette: null,
+      selectedSource: "original",
+    }),
   addConversion: (conversion) =>
     set((s) => {
       const index = s.conversions.findIndex((c) => c.voiceId === conversion.voiceId);
@@ -130,6 +138,11 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
           : [...s.conversions, conversion];
       return { conversions };
     }),
+  setSelectedSource: (selectedSource) => set({ selectedSource }),
+  setConversionScene: (voiceId, sceneId) =>
+    set((s) => ({
+      conversions: s.conversions.map((c) => (c.voiceId === voiceId ? { ...c, sceneId } : c)),
+    })),
   setTransforming: (transforming) => set({ transforming }),
   setTransformError: (transformError) => set({ transformError }),
   setExporting: (exporting) => set({ exporting }),

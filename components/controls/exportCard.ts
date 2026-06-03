@@ -1,4 +1,5 @@
 import type { AnimationParams } from "@/lib/audio/types";
+import { downloadBlob } from "@/lib/download";
 
 /** Render a retro "About this voice" card to a PNG and trigger a download. Browser-only. */
 export function exportVoiceCard(opts: {
@@ -64,14 +65,6 @@ export function exportVoiceCard(opts: {
   ctx.fillText("VOICEPRINT.SCR", 16, H - 14);
 
   canvas.toBlob((blob) => {
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "voiceprint.png";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    if (blob) downloadBlob(blob, "voiceprint.png");
   }, "image/png");
 }

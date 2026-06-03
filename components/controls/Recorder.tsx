@@ -49,7 +49,8 @@ export function Recorder({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [source, setSource] = useState<string>("original"); // "original" or a voiceId
+  const source = useAudioStore((s) => s.selectedSource); // "original" or a voiceId
+  const setSource = useAudioStore((s) => s.setSelectedSource);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<"webm" | "gif">("webm");
 
@@ -68,7 +69,6 @@ export function Recorder({
   const lastConversionRef = useRef<string | null>(null);
 
   const setParams = useAudioStore((s) => s.setParams);
-  const setRecording = useAudioStore((s) => s.setRecording);
   const setRecordedBlob = useAudioStore((s) => s.setRecordedBlob);
   const recordedBlob = useAudioStore((s) => s.recordedBlob);
   const conversions = useAudioStore((s) => s.conversions);
@@ -77,6 +77,7 @@ export function Recorder({
   const setPlayingLabel = useAudioStore((s) => s.setPlayingLabel);
   const setActiveScene = useAudioStore((s) => s.setActiveScene);
   const setVoicePalette = useAudioStore((s) => s.setVoicePalette);
+  const setTargetVoiceId = useAudioStore((s) => s.setTargetVoiceId);
   const exporting = useAudioStore((s) => s.exporting);
   const setExporting = useAudioStore((s) => s.setExporting);
 
@@ -95,9 +96,10 @@ export function Recorder({
       if (conv) {
         setActiveScene(conv.sceneId);
         setVoicePalette(conv.palette);
+        setTargetVoiceId(conv.voiceId); // the dialog now edits the selected take
       }
     },
-    [conversions, setActiveScene, setVoicePalette],
+    [conversions, setActiveScene, setVoicePalette, setTargetVoiceId],
   );
 
   const ensureContext = useCallback((): AudioContext => {
@@ -137,7 +139,7 @@ export function Recorder({
       setSource(latest.voiceId);
       applyVisualsFor(latest.voiceId);
     }
-  }, [conversions, applyVisualsFor]);
+  }, [conversions, applyVisualsFor, setSource]);
 
   const maybePlay = useCallback(() => {
     if (!pendingPlayRef.current) return;
@@ -176,19 +178,17 @@ export function Recorder({
       };
       recorder.start();
       setStatus("recording");
-      setRecording(true);
       sfx.record();
     } catch (err) {
       setMicError(err instanceof Error ? err.message : "Microphone access failed");
       setStatus("idle");
     }
-  }, [ensureContext, setParams, setRecording, setRecordedBlob, onRecorded]);
+  }, [ensureContext, setParams, setRecordedBlob, onRecorded, setSource]);
 
   const stop = useCallback(() => {
     recorderRef.current?.stop();
-    setRecording(false);
     sfx.stop();
-  }, [setRecording]);
+  }, []);
 
   // Build the playback graph once: element → destination (audible) + analyser + a stream tap so
   // export can mux the audio into the recorded clip.
@@ -262,7 +262,7 @@ export function Recorder({
       pendingPlayRef.current = true;
       setSource(next);
     },
-    [source, applyVisualsFor],
+    [source, applyVisualsFor, setSource],
   );
 
   const togglePlay = useCallback(() => {

@@ -18,7 +18,7 @@ export function signTrialCount(count: number): string {
 }
 
 /** Verify a signed cookie value and return the used-count, or 0 if missing/tampered. */
-export function readTrialCount(cookieValue: string | undefined): number {
+function readTrialCount(cookieValue: string | undefined): number {
   if (!cookieValue) return 0;
   const dot = cookieValue.lastIndexOf(".");
   if (dot <= 0) return 0;

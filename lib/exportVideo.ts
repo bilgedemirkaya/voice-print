@@ -1,3 +1,5 @@
+import { downloadBlob } from "./download";
+
 /** Record a canvas (the live visualization) to a downloadable webm clip — a shareable "voiceprint". */
 export async function exportSceneVideo(
   canvas: HTMLCanvasElement,
@@ -25,15 +27,7 @@ export async function exportSceneVideo(
 
   await new Promise<void>((resolve) => {
     recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "voiceprint.webm";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(new Blob(chunks, { type: mimeType }), "voiceprint.webm");
       resolve();
     };
     recorder.start();
