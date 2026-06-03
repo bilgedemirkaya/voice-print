@@ -74,7 +74,13 @@ export default function DesktopPage() {
 
   return (
     <main className="desktop-bg relative min-h-screen overflow-hidden">
-      <div className={fullscreen ? "absolute inset-2 bottom-12" : "absolute left-4 top-4"}>
+      <div
+        className={
+          fullscreen
+            ? "absolute inset-2 bottom-12"
+            : "absolute inset-0 bottom-12 flex items-center justify-center p-4"
+        }
+      >
         <AnimatePresence>
           {windowOpen && (
             <Window

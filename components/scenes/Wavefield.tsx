@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
+import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { useReducedMotion } from "framer-motion";
 import * as THREE from "three";
+import type { BloomEffect } from "postprocessing";
 import { useAudioStore } from "@/lib/store/audioStore";
 import { wavefieldUniforms } from "./wavefieldUniforms";
 
@@ -104,8 +106,22 @@ export function Wavefield() {
   );
 }
 
+/** Neon CRT glow: bloom whose intensity swells with the voice's energy (damped if reduced-motion). */
+function ReactiveBloom({ reduced }: { reduced: boolean }) {
+  const ref = useRef<BloomEffect | null>(null);
+  useFrame(() => {
+    if (!ref.current) return;
+    const energy = useAudioStore.getState().params.energy;
+    ref.current.intensity = reduced ? 0.7 : 0.45 + energy * 2.6;
+  });
+  return (
+    <Bloom ref={ref} mipmapBlur luminanceThreshold={0.12} luminanceSmoothing={0.4} intensity={0.8} />
+  );
+}
+
 /** Canvas wrapper. Loaded client-side only (WebGL) — import via next/dynamic with ssr:false. */
 export function WavefieldCanvas() {
+  const reduced = useReducedMotion() ?? false;
   return (
     <Canvas
       dpr={[1, 2]}
@@ -114,6 +130,9 @@ export function WavefieldCanvas() {
     >
       <color attach="background" args={["#140a28"]} />
       <Wavefield />
+      <EffectComposer>
+        <ReactiveBloom reduced={reduced} />
+      </EffectComposer>
     </Canvas>
   );
 }
