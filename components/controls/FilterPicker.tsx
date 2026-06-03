@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/retro/Button";
 import { SCENES, SceneView } from "@/components/scenes/registry";
+import { voicePaletteForLabels } from "@/lib/voicePalette";
 import { useTransform } from "@/components/controls/useTransform";
 import { exportVoiceCard } from "@/components/controls/exportCard";
 import { sfx } from "@/lib/sfx";
@@ -15,6 +16,18 @@ const SLIDERS: Array<{ key: keyof VoiceSettings; label: string; hint: string }> 
   { key: "style", label: "Style", hint: "Exaggerates the voice's character — 0 is neutral." },
 ];
 
+// Maps our filter dials to ElevenLabs voice-label keys.
+const VOICE_FILTERS: Array<{ key: string; label: string }> = [
+  { key: "gender", label: "Gender" },
+  { key: "age", label: "Age" },
+  { key: "accent", label: "Accent" },
+  { key: "descriptive", label: "Vibe" },
+];
+
+function formatLabel(value: string): string {
+  return value.replace(/_/g, " ");
+}
+
 /**
  * The fake Display Properties → Screen Saver dialog body (CLAUDE.md §2, §6, §11):
  * pick a screensaver scene, a target voice, and tune the voice settings, then Apply to convert.
@@ -22,6 +35,7 @@ const SLIDERS: Array<{ key: keyof VoiceSettings; label: string; hint: string }> 
 export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const activeScene = useAudioStore((s) => s.activeScene);
   const setActiveScene = useAudioStore((s) => s.setActiveScene);
+  const setVoicePalette = useAudioStore((s) => s.setVoicePalette);
   const targetVoiceId = useAudioStore((s) => s.targetVoiceId);
   const setTargetVoiceId = useAudioStore((s) => s.setTargetVoiceId);
   const voiceSettings = useAudioStore((s) => s.voiceSettings);
@@ -42,6 +56,55 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const sceneName = SCENES.find((s) => s.id === activeScene)?.name ?? activeScene;
   const voiceName = voices.find((v) => v.id === targetVoiceId)?.name ?? targetVoiceId;
   const [activeHint, setActiveHint] = useState(SLIDERS[0].hint);
+  const [filters, setFilters] = useState<Record<string, string>>({
+    gender: "",
+    age: "",
+    accent: "",
+    descriptive: "",
+  });
+
+  const matchesFilters = (labels: Record<string, string>, active: Record<string, string>): boolean =>
+    VOICE_FILTERS.every((f) => !active[f.key] || labels[f.key] === active[f.key]);
+  const matchedVoices = voices.filter((v) => matchesFilters(v.labels, filters));
+  // Cascading: only show values still achievable given the *other* selected filters.
+  const optionsFor = (key: string, active: Record<string, string> = filters): string[] =>
+    Array.from(
+      new Set(
+        voices
+          .filter((v) => matchesFilters(v.labels, { ...active, [key]: "" }))
+          .map((v) => v.labels[key])
+          .filter(Boolean),
+      ),
+    ).sort();
+
+  // Selecting a voice gives the screensaver a consistent color identity (from gender/vibe).
+  const applyVoice = (id: string): void => {
+    setTargetVoiceId(id);
+    setDirty(true);
+    const voice = voices.find((v) => v.id === id);
+    if (voice) setVoicePalette(voicePaletteForLabels(voice.labels));
+  };
+
+  const onFilterChange = (key: string, value: string): void => {
+    let next = { ...filters, [key]: value };
+    // drop other selections that are no longer achievable under the new filter
+    for (const f of VOICE_FILTERS) {
+      if (f.key !== key && next[f.key] && !optionsFor(f.key, next).includes(next[f.key])) {
+        next = { ...next, [f.key]: "" };
+      }
+    }
+    setFilters(next);
+    // keep the current voice if it still matches; otherwise jump to the first match
+    if (!voices.some((v) => v.id === targetVoiceId && matchesFilters(v.labels, next))) {
+      const first = voices.find((v) => matchesFilters(v.labels, next));
+      if (first) {
+        applyVoice(first.id);
+      } else {
+        setTargetVoiceId("");
+        setDirty(true);
+      }
+    }
+  };
 
   // No-op if already cached; otherwise fetches once.
   useEffect(() => {
@@ -97,24 +160,37 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
         </ul>
       </div>
 
-      <label className="flex items-center gap-2">
-        <span className="w-16">Voice</span>
-        <select
-          value={targetVoiceId}
-          onChange={(event) => {
-            setTargetVoiceId(event.target.value);
-            setDirty(true);
-          }}
-          className="bevel-inset flex-1 bg-white px-1 py-0.5"
-        >
-          {voices.length === 0 && <option value="">{voicesError ? "no voices" : "loading…"}</option>}
-          {voices.map((voice) => (
-            <option key={voice.id} value={voice.id}>
-              {voice.name}
-            </option>
+      <div className="flex flex-col gap-1.5">
+        <p className="font-bold">Voice</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {VOICE_FILTERS.map((f) => (
+            <label key={f.key} className="flex items-center gap-1">
+              <span className="w-12 text-w95-darkgray">{f.label}</span>
+              <select
+                value={filters[f.key]}
+                onChange={(event) => onFilterChange(f.key, event.target.value)}
+                className="bevel-inset min-w-0 flex-1 bg-white px-1 py-0.5 capitalize"
+              >
+                <option value="">Any</option>
+                {optionsFor(f.key).map((opt) => (
+                  <option key={opt} value={opt}>
+                    {formatLabel(opt)}
+                  </option>
+                ))}
+              </select>
+            </label>
           ))}
-        </select>
-      </label>
+        </div>
+        <p className="text-[10px] italic text-w95-darkgray">
+          {matchedVoices.length === 0
+            ? voicesError
+              ? "Couldn't load voices."
+              : "No voices match these filters."
+            : `${matchedVoices.length} voice${matchedVoices.length === 1 ? "" : "s"} → ${
+                voices.find((v) => v.id === targetVoiceId)?.name ?? matchedVoices[0].name
+              }`}
+        </p>
+      </div>
 
       <div className="flex flex-col gap-1.5">
         <p className="font-bold">Settings</p>

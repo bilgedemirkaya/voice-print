@@ -47,7 +47,10 @@ export function Wavefield() {
     const geom = geomRef.current;
     if (!geom) return;
 
-    const params = useAudioStore.getState().params;
+    const state = useAudioStore.getState();
+    const params = state.voicePalette
+      ? { ...state.params, palette: state.voicePalette }
+      : state.params;
     const u = wavefieldUniforms(params, { reducedMotion: reduced });
     timeRef.current += delta * u.speed;
     const t = timeRef.current;

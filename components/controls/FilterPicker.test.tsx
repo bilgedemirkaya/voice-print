@@ -17,8 +17,8 @@ vi.mock("@/components/scenes/registry", () => ({
 import { FilterPicker } from "./FilterPicker";
 
 const VOICES = [
-  { id: "v1", name: "Robotic", labels: {} },
-  { id: "v2", name: "Narrator", labels: {} },
+  { id: "v1", name: "Robotic", labels: { gender: "male", age: "young", accent: "american" } },
+  { id: "v2", name: "Narrator", labels: { gender: "female", age: "middle_aged", accent: "british" } },
 ];
 
 let transformInit: RequestInit | undefined;
@@ -35,6 +35,7 @@ function resetStore() {
     transformError: null,
     crtEnabled: true,
     soundEnabled: true,
+    voicePalette: null,
     dirty: false,
     voices: [],
     voicesStatus: "idle",
@@ -70,11 +71,23 @@ afterEach(() => {
 });
 
 describe("FilterPicker", () => {
-  it("loads voices and defaults the target voice", async () => {
+  it("loads voices, exposes label filters, and defaults the target voice", async () => {
     render(<FilterPicker />);
-    expect(await screen.findByRole("option", { name: "Robotic" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Narrator" })).toBeInTheDocument();
+    // filter options are derived from the voices' labels (no voice dropdown)
+    expect(await screen.findByRole("option", { name: "female" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "male" })).toBeInTheDocument();
     await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+  });
+
+  it("matches voices by a label filter (Gender), updates the voice, and sets a voice palette", async () => {
+    const user = userEvent.setup();
+    render(<FilterPicker />);
+    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+
+    await user.selectOptions(screen.getByRole("combobox", { name: /Gender/i }), "female");
+
+    expect(useAudioStore.getState().targetVoiceId).toBe("v2");
+    expect(useAudioStore.getState().voicePalette).not.toBeNull();
   });
 
   it("selecting a screensaver sets the active scene and enables Apply", async () => {
@@ -121,7 +134,7 @@ describe("FilterPicker", () => {
 
     await waitFor(() =>
       expect(useAudioStore.getState().conversions).toEqual([
-        { voiceId: "v1", voiceName: "Robo", url: "/api/audio/out.mp3" },
+        { voiceId: "v1", voiceName: "Robotic", url: "/api/audio/out.mp3" },
       ]),
     );
     const body = transformInit?.body as FormData;

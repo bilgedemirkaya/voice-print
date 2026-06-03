@@ -37,7 +37,11 @@ export function Mystify() {
     let raf = 0;
     const tick = (): void => {
       raf = requestAnimationFrame(tick);
-      const style = mystifyStyle(useAudioStore.getState().params, { reducedMotion: reduced });
+      const state = useAudioStore.getState();
+      const params = state.voicePalette
+        ? { ...state.params, palette: state.voicePalette }
+        : state.params;
+      const style = mystifyStyle(params, { reducedMotion: reduced });
 
       // Fade the previous frame instead of clearing → afterimage trails.
       ctx.fillStyle = `rgba(20,10,40,${style.trailFade})`;

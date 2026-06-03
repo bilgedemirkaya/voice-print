@@ -79,7 +79,11 @@ export function Pipes() {
     let raf = 0;
     const tick = (now: number): void => {
       raf = requestAnimationFrame(tick);
-      const style = pipesStyle(useAudioStore.getState().params, { reducedMotion: reduced });
+      const state = useAudioStore.getState();
+      const params = state.voicePalette
+        ? { ...state.params, palette: state.voicePalette }
+        : state.params;
+      const style = pipesStyle(params, { reducedMotion: reduced });
       acc += ((now - last) / 1000) * style.growthRate;
       last = now;
       let budget = 0;

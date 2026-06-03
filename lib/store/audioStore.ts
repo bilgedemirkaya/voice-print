@@ -42,6 +42,8 @@ type AudioState = {
   soundEnabled: boolean;
   // label of the clip currently driving the visuals (e.g. "You" / a voice name), or null
   playingLabel: string | null;
+  // color identity for the selected voice (gender/vibe), overriding the audio palette; or null
+  voicePalette: [string, string, string] | null;
   // whether settings have changed since the last Apply (drives the Apply button)
   dirty: boolean;
   // voices, fetched once and cached
@@ -61,6 +63,7 @@ type AudioState = {
   setCrtEnabled: (enabled: boolean) => void;
   setSoundEnabled: (enabled: boolean) => void;
   setPlayingLabel: (label: string | null) => void;
+  setVoicePalette: (palette: [string, string, string] | null) => void;
   setDirty: (dirty: boolean) => void;
   /** Fetch voices once and cache them; no-op if already loading/ready. */
   loadVoices: () => Promise<void>;
@@ -80,6 +83,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   crtEnabled: true,
   soundEnabled: true,
   playingLabel: null,
+  voicePalette: null,
   dirty: false,
   voices: [],
   voicesStatus: "idle",
@@ -106,6 +110,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   setCrtEnabled: (crtEnabled) => set({ crtEnabled }),
   setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
   setPlayingLabel: (playingLabel) => set({ playingLabel }),
+  setVoicePalette: (voicePalette) => set({ voicePalette }),
   setDirty: (dirty) => set({ dirty }),
   loadVoices: async () => {
     const status = get().voicesStatus;

@@ -36,7 +36,11 @@ export function Starfield() {
     let raf = 0;
     const tick = (): void => {
       raf = requestAnimationFrame(tick);
-      const style = starfieldStyle(useAudioStore.getState().params, { reducedMotion: reduced });
+      const state = useAudioStore.getState();
+      const params = state.voicePalette
+        ? { ...state.params, palette: state.voicePalette }
+        : state.params;
+      const style = starfieldStyle(params, { reducedMotion: reduced });
 
       // Slight fade leaves short trails behind the streaks.
       ctx.fillStyle = "rgba(5,3,15,0.4)";
