@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "VOICESCREEN.SCR",
+  title: "VOICEPRINT.SCR",
   description:
     "Retro-90s voice visualizer with ElevenLabs voice transformation via an MCP server.",
 };

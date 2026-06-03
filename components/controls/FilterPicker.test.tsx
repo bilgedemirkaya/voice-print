@@ -132,11 +132,13 @@ describe("FilterPicker", () => {
 
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
-    await waitFor(() =>
-      expect(useAudioStore.getState().conversions).toEqual([
-        { voiceId: "v1", voiceName: "Robotic", url: "/api/audio/out.mp3" },
-      ]),
-    );
+    await waitFor(() => expect(useAudioStore.getState().conversions).toHaveLength(1));
+    expect(useAudioStore.getState().conversions[0]).toMatchObject({
+      voiceId: "v1",
+      voiceName: "Robotic",
+      url: "/api/audio/out.mp3",
+      sceneId: "wavefield",
+    });
     const body = transformInit?.body as FormData;
     expect(body.get("targetVoiceId")).toBe("v1");
     expect(JSON.parse(String(body.get("settings")))).toMatchObject({ stability: 0.7 });

@@ -1,11 +1,8 @@
-# voicescreen-mcp
+# voiceprint-mcp
 
 A standalone [Model Context Protocol](https://modelcontextprotocol.io) server that exposes
-ElevenLabs voice operations as tools. It is the integration boundary for VOICESCREEN.SCR: the
-Next.js app is the MCP **client**, this process is the MCP **server**, and the ElevenLabs API key
-lives here only — never in the browser (see [CLAUDE.md](../CLAUDE.md) §4, §6, §7).
-
-Tools return **handles** into a shared on-disk audio store, never raw/base64 audio over the wire.
+ElevenLabs voice operations as tools. It is the integration boundary for VOICEPRINT.SCR: the
+Next.js app is the MCP **client**, this process is the MCP **server**. ared on-disk audio store, never raw/base64 audio over the wire.
 
 ## Setup
 
@@ -17,7 +14,7 @@ pnpm --filter mcp-server dev   # boots over stdio; logs "ready" to stderr
 | Env var | Required | Purpose |
 |---|---|---|
 | `ELEVENLABS_API_KEY` | yes (for live calls) | Auth for the ElevenLabs REST API (`xi-api-key`). |
-| `AUDIO_TMP_DIR` | no | Where converted audio is written/served. Defaults to `<os-tmp>/voicescreen-audio`. |
+| `AUDIO_TMP_DIR` | no | Where converted audio is written/served. Defaults to `<os-tmp>/voiceprint-audio`. |
 
 The server boots without a key (so a host can list its tools); calls that need it fail with a
 clear "ELEVENLABS_API_KEY is not set" error.

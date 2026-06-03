@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/retro/Button";
 import { Dialog } from "@/components/retro/Dialog";
@@ -42,6 +42,10 @@ export default function DesktopPage() {
   const [pendingOpen, setPendingOpen] = useState(false);
   const isMobile = useIsMobile();
   const fullscreen = maximized || isMobile; // mobile is always maximized
+  const exporting = useAudioStore((s) => s.exporting);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const getSceneCanvas = (): HTMLCanvasElement | null =>
+    sceneRef.current?.querySelector("canvas") ?? null;
 
 
 
@@ -74,7 +78,7 @@ export default function DesktopPage() {
           {windowOpen && (
             <Window
               key="visualizer"
-              title="VOICESCREEN.SCR — Visualizer"
+              title="VOICEPRINT.SCR — Visualizer"
               resizable={!fullscreen}
               fill={fullscreen}
               maximized={maximized}
@@ -90,7 +94,10 @@ export default function DesktopPage() {
               }}
             >
               <div className="flex min-h-0 flex-1 flex-col gap-3">
-                <div className="relative min-h-0 flex-1 overflow-hidden bevel-inset bg-[#140a28]">
+                <div
+                  ref={sceneRef}
+                  className="relative min-h-0 flex-1 overflow-hidden bevel-inset bg-[#140a28]"
+                >
                   <SceneView scene={activeScene} />
                   {playingLabel && (
                     <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-1.5 bg-black/55 px-2 py-1 text-[11px] font-bold text-white">
@@ -115,9 +122,22 @@ export default function DesktopPage() {
                       </div>
                     </div>
                   )}
+                  {exporting && (
+                    <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1.5 bg-black/55 px-2 py-1 text-[11px] font-bold text-white">
+                      <span
+                        aria-hidden
+                        className="h-2 w-2 rounded-full bg-[#e53935] motion-safe:animate-pulse"
+                      />
+                      REC
+                    </div>
+                  )}
                 </div>
                 <div className="flex shrink-0 flex-wrap items-end justify-between gap-2">
-                  <Recorder onRecorded={openSettings} onAddVoice={openSettings} />
+                  <Recorder
+                    onRecorded={openSettings}
+                    onAddVoice={openSettings}
+                    getSceneCanvas={getSceneCanvas}
+                  />
                   <Button onClick={openSettings} disabled={pendingOpen}>
                     {pendingOpen ? "Loading voices…" : "Display Properties…"}
                   </Button>
@@ -139,7 +159,7 @@ export default function DesktopPage() {
         >
           <div className="mr-1 flex items-end justify-center bg-[linear-gradient(to_top,#9b51e0,#5cb8ff)] px-1.5 py-3">
             <span className="rotate-180 text-base font-bold tracking-wider text-white [writing-mode:vertical-rl]">
-              VOICESCREEN<span className="opacity-70">.SCR</span>
+              VOICEPRINT<span className="opacity-70">.SCR</span>
             </span>
           </div>
           <ul className="flex-1 self-stretch py-1 text-sm">
@@ -191,7 +211,7 @@ export default function DesktopPage() {
             <span className="bg-[#5fd0ff]" />
             <span className="bg-[#ffe066]" />
           </span>
-          <span className="truncate">VOICESCREEN.SCR</span>
+          <span className="truncate">VOICEPRINT.SCR</span>
         </button>
       </TaskBar>
 

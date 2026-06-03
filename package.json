@@ -1,8 +1,8 @@
 {
-  "name": "voicescreen",
+  "name": "voiceprint",
   "version": "0.1.0",
   "private": true,
-  "description": "VOICESCREEN.SCR — retro-90s voice visualizer with ElevenLabs voice transformation via an MCP server.",
+  "description": "VOICEPRINT.SCR — retro-90s voice visualizer with ElevenLabs voice transformation via an MCP server.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

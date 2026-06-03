@@ -15,5 +15,5 @@ export function elevenLabsApiKey(): string {
 /** Directory backing the audio handle store. Override with AUDIO_TMP_DIR. */
 export function audioDir(): string {
   const dir = process.env.AUDIO_TMP_DIR?.trim();
-  return dir ? path.resolve(dir) : path.join(os.tmpdir(), "voicescreen-audio");
+  return dir ? path.resolve(dir) : path.join(os.tmpdir(), "voiceprint-audio");
 }

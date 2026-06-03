@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { useAudioStore } from "@/lib/store/audioStore";
 import { sfx } from "@/lib/sfx";
+import { voicePaletteForLabels } from "@/lib/voicePalette";
 
 /** Turn ElevenLabs' raw error JSON into a short, friendly message. */
 function friendlyError(message: string): string {
@@ -44,12 +45,13 @@ export function useTransform() {
       const data = (await res.json()) as { resultHandle?: string; error?: string };
       if (!res.ok || !data.resultHandle) throw new Error(data.error ?? "Transform failed");
 
-      const voiceName =
-        state.voices.find((v) => v.id === state.targetVoiceId)?.name ?? state.targetVoiceId;
+      const voice = state.voices.find((v) => v.id === state.targetVoiceId);
       state.addConversion({
         voiceId: state.targetVoiceId,
-        voiceName,
+        voiceName: voice?.name ?? state.targetVoiceId,
         url: `/api/audio/${data.resultHandle}`,
+        sceneId: state.activeScene,
+        palette: voice ? voicePaletteForLabels(voice.labels) : state.params.palette,
       });
     } catch (err) {
       state.setTransformError(friendlyError(err instanceof Error ? err.message : "Transform failed"));

@@ -30,7 +30,7 @@ async function createClient(): Promise<Client> {
     cwd: mcpDir,
     env: { ...getDefaultEnvironment(), AUDIO_TMP_DIR: audioStoreDir() },
   });
-  const client = new Client({ name: "voicescreen-web", version: "0.1.0" });
+  const client = new Client({ name: "voiceprint-web", version: "0.1.0" });
   await client.connect(transport);
   return client;
 }

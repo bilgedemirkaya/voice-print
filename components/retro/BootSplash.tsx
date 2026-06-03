@@ -43,7 +43,7 @@ export function BootSplash() {
       {visible && (
         <motion.div
           role="status"
-          aria-label="Loading VOICESCREEN.SCR"
+          aria-label="Loading VOICEPRINT.SCR"
           onClick={() => setVisible(false)}
           className="fixed inset-0 z-[100] flex cursor-pointer flex-col items-center justify-center bg-[#0a0618] text-white"
           initial={false}
@@ -58,7 +58,7 @@ export function BootSplash() {
               <span className="bg-[#ffe066]" />
             </span>
             <h1 className="text-2xl font-bold tracking-[0.3em]">
-              VOICESCREEN<span className="opacity-60">.SCR</span>
+              VOICEPRINT<span className="opacity-60">.SCR</span>
             </h1>
           </div>
           <p className="mt-2 text-xs tracking-[0.35em] text-w95-silver opacity-75">A VOICE YOU CAN SEE</p>

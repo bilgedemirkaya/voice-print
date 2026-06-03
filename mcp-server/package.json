@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "VOICESCREEN.SCR MCP server — wraps ElevenLabs voice operations as MCP tools.",
+  "description": "VOICEPRINT.SCR MCP server — wraps ElevenLabs voice operations as MCP tools.",
   "scripts": {
     "dev": "tsx watch index.ts",
     "start": "tsx index.ts",

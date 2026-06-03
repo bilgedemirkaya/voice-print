@@ -6,14 +6,14 @@ import { registerGetVoiceSettings } from "./tools/getVoiceSettings.js";
 import { registerTransformVoice } from "./tools/transformVoice.js";
 
 /**
- * VOICESCREEN.SCR MCP server (M4).
+ * VOICEPRINT.SCR MCP server (M4).
  *
  * Wraps ElevenLabs voice operations as MCP tools over stdio. The API key is read from this
  * process's own environment only (see .env). Tools return audio *handles* into a shared temp
  * store, never raw audio. See CLAUDE.md §4, §6, §7 and ./README.md.
  */
 async function main(): Promise<void> {
-  const server = new McpServer({ name: "voicescreen-mcp", version: "0.1.0" });
+  const server = new McpServer({ name: "voiceprint-mcp", version: "0.1.0" });
 
   registerListVoices(server);
   registerGetVoiceSettings(server);

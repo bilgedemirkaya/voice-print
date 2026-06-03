@@ -27,7 +27,7 @@ const MIME_EXT: Record<string, string> = {
 /** Shared audio temp dir. Passed to the MCP server via AUDIO_TMP_DIR so both sides agree. */
 export function audioStoreDir(): string {
   const dir = process.env.AUDIO_TMP_DIR?.trim();
-  return dir ? path.resolve(dir) : path.join(os.tmpdir(), "voicescreen-audio");
+  return dir ? path.resolve(dir) : path.join(os.tmpdir(), "voiceprint-audio");
 }
 
 export function extForMimeType(mimeType: string): string {

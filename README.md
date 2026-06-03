@@ -1,138 +1,134 @@
-# VOICESCREEN.SCR
+# VOICEPRINT.SCR
 
-A retro-90s Microsoft-screensaver-style **voice visualizer**: record your voice once, watch a WebGL audio-reactive "screensaver" respond to it, then apply ElevenLabs voice filters (via a custom **MCP server**) and watch the animation visibly change.
+> _Record your voice. Watch it become a 1998 screensaver. Change the voice — watch the screensaver change with it._
 
-- **What & why:** [CLAUDE.md](CLAUDE.md) — the design source of truth.
-- **Build plan & milestones:** [ROADMAP.md](ROADMAP.md).
-- **Current status:** **M0 (scaffold) complete.** The app boots, the MCP server boots, and the full toolchain (typecheck/lint/test/build) is green. Features land milestone by milestone starting at M1.
+A retro Windows 95/98 desktop that turns your voice into a live WebGL screensaver. Speak once, and the waveform, colors, and motion are all driven by **your** audio. Then run your voice through ElevenLabs filters — "radio announcer", "deep", "chipmunk" — and the screensaver visibly morphs to match the new voice. Each voice even gets its own screensaver and color identity.
+
+It's a portfolio piece with two things to show off:
+
+1. **Front-end craft** — a hand-built 95/98 desktop (no UI kit) married to real-time, audio-reactive Three.js.
+2. **A real MCP server** — every ElevenLabs call goes through a standalone [Model Context Protocol](https://modelcontextprotocol.io) server, not a `fetch` buried in a component. The browser never sees an API key.
 
 ---
 
-## Prerequisites
+## The 30-second tour
 
-- **Node.js ≥ 20** (developed on Node 22).
-- **pnpm 9** — this repo pins it via `packageManager`. The easiest way to get it:
+```
+🎙️  record your voice  ──►  📊  it's analyzed live  ──►  🌌  screensaver reacts
+                                                              │
+                          🎛️  pick a vibe (gender / age / accent)
+                                                              │
+                          🔌  MCP server ──► ElevenLabs voice changer
+                                                              │
+                          🔁  new voice ──► new colors, new motion, new scene
+                                                              │
+                          🎬  export it as a shareable voiceprint clip
+```
 
-  ```bash
-  corepack enable pnpm
-  ```
-
-  Corepack ships with Node, so no separate install is needed. Verify with `pnpm -v` (should print `9.x`).
+The payoff: you hear a different voice and **see** the visualization change at the same time.
 
 ---
 
 ## Quick start
 
+**You'll need:** Node ≥ 20 and pnpm 9 (`corepack enable pnpm`).
+
 ```bash
-# 1. install all workspace dependencies (root app + mcp-server)
+# 1. install everything (the app + the MCP server)
 pnpm install
 
-# 2. (optional) create your local env file — only needed once ElevenLabs is wired in M4
-cp .env.example .env
-#   then fill in ELEVENLABS_API_KEY
+# 2. give the MCP server an ElevenLabs key
+cp mcp-server/.env.example mcp-server/.env
+#   then open mcp-server/.env and paste your ELEVENLABS_API_KEY
 
-# 3. start the app
+# 3. go
 pnpm dev
 ```
 
-Open **http://localhost:3000** — you should see the teal desktop placeholder ("VOICESCREEN.SCR"). The real retro UI arrives in M1.
+Open **http://localhost:3000** and you'll boot straight into the desktop.
+
+> No ElevenLabs key? The desktop, recording, and live visualization all work — only the voice _transform_ step needs a key. Grab a free one at [elevenlabs.io](https://elevenlabs.io).
 
 ---
 
-## Where the commands live
+## How to play with it
 
-There is no standalone scripts file — commands are defined in the `"scripts"` section of each `package.json`:
+1. **Hit record** and say something. The screensaver starts dancing to your voice immediately.
+2. The **Display Properties → Screen Saver** dialog pops open. Here you:
+   - dial in a **vibe** with the Gender / Age / Accent / Vibe filters (they cascade — picking one narrows the rest, and the system matches you to a real ElevenLabs voice),
+   - pick a **screensaver** (WAVEFIELD, MYSTIFY, STARFIELD, PIPES),
+   - tweak **Stability / Similarity / Style**, then hit **Apply**.
+3. Your clip gets transformed and plays back — the visualization takes on that voice's **color** and **scene**.
+4. Use the **You / Voice A / Voice B / +** tabs to A/B them. Each voice remembers its own screensaver and palette, so flipping tabs flips the whole vibe.
+5. Hit **🎬 Export clip** to download a `voiceprint.webm` of the live visualization — the most shareable artifact.
 
-- Root app + workspace: [package.json](package.json)
-- MCP server: [mcp-server/package.json](mcp-server/package.json)
+Bonus toggles: **CRT** scanlines and **Sounds** (synthesized 90s UI beeps). Everything respects `prefers-reduced-motion` and works on mobile.
 
-You invoke them with `pnpm <name>`.
+---
 
-### Root scripts (run from the project root)
+## How it's wired
 
-| Command | What it does |
-|---|---|
-| `pnpm dev` | Start the Next.js dev server at http://localhost:3000 (hot reload). |
-| `pnpm build` | Production build of the Next.js app. |
-| `pnpm start` | Serve the production build (run `pnpm build` first). |
-| `pnpm typecheck` | `tsc --noEmit` for the app **and** the MCP server. |
-| `pnpm lint` | ESLint for the app **and** the MCP server. |
-| `pnpm format` | Format the repo with Prettier (`format:check` to only check). |
-| `pnpm test` | Run the Vitest suite once. |
-| `pnpm test:watch` | Run Vitest in watch mode. |
-| `pnpm mcp:dev` | Shortcut for the MCP server dev script below. |
+Three deliberately separate layers — the MCP boundary is real, not cosmetic:
 
-### MCP server scripts (standalone, see [CLAUDE.md §7](CLAUDE.md))
+```
+Browser (Next.js + react-three-fiber)
+  · 95/98 desktop, mic capture, Web Audio analysis → live Three.js scenes
+        │  HTTP
+Next.js server (API routes)
+  · holds the keys, acts as the MCP *client*
+        │  MCP (stdio)
+MCP server (standalone Node process)
+  · tools: list_voices, get_voice_settings, transform_voice, suggest_filter
+  · the only place ElevenLabs is ever called
+```
 
-Run via the workspace filter so you don't have to `cd`:
+Audio moves around as **handles**, never giant base64 blobs — the MCP server writes converted clips to a temp store and hands back a URL.
+
+Want the full design rationale? It all lives in **[CLAUDE.md](CLAUDE.md)**.
+
+---
+
+## Commands
 
 ```bash
-pnpm --filter mcp-server dev        # boot the stdio MCP server (tsx watch); logs "ready"
-pnpm --filter mcp-server start      # boot once without watch
-pnpm --filter mcp-server build      # compile to mcp-server/dist
-pnpm --filter mcp-server typecheck  # tsc --noEmit
-pnpm --filter mcp-server lint       # eslint
+pnpm dev          # run the app (spawns the MCP server for you)
+pnpm build        # production build
+pnpm mcp:dev      # run the MCP server standalone (stdio)
+
+pnpm typecheck    # tsc, app + mcp-server
+pnpm lint         # eslint, app + mcp-server
+pnpm test         # vitest, app + mcp-server  (94 tests)
+pnpm format       # prettier
 ```
-
-The MCP server talks the MCP protocol over **stdio**, so it logs to **stderr** (`stdout` is the protocol channel) and waits for a client. In M0 it registers **zero tools** — `list_voices` / `transform_voice` arrive in M4. Press `Ctrl-C` to stop it.
-
----
-
-## How to test (M0)
-
-Everything below should pass on a clean checkout. This is the M0 exit criteria from [ROADMAP.md](ROADMAP.md).
-
-```bash
-pnpm install        # ✓ installs cleanly
-pnpm typecheck      # ✓ no type errors (app + mcp-server)
-pnpm lint           # ✓ no lint errors (app + mcp-server)
-pnpm test           # ✓ 1 passing sample test (tests/sanity.test.ts)
-pnpm build          # ✓ builds; routes: / , /api/audio/[handle] , /api/transform
-```
-
-**Manual smoke checks:**
-
-1. **App boots** — `pnpm dev`, open http://localhost:3000, see the teal desktop placeholder.
-2. **MCP server boots** — `pnpm --filter mcp-server dev`, confirm it prints `[mcp-server] ready` to the terminal (stderr), then `Ctrl-C`.
-
-As features land, each milestone adds its own tests; `pnpm test` is the single command that runs the whole suite. See the per-milestone **Test prompts** in [ROADMAP.md](ROADMAP.md).
-
----
-
-## Project structure
-
-```
-/app                      Next.js App Router
-  /(desktop)/page.tsx     the desktop entry (served at /)
-  /api/audio/[handle]     serve converted audio by handle (GET) — implemented in M5
-  /api/transform          record → MCP → ElevenLabs (POST)     — implemented in M5
-  layout.tsx, globals.css
-/components
-  /retro                  hand-built 95/98 chrome (M1)
-  /scenes                 react-three-fiber scenes (M3, M7, M8)
-  /controls               recorder, filter picker, sliders (M2, M6)
-/lib
-  /audio                  analyser + feature extraction → AnimationParams (M2)
-  /mcp-client             MCP client used by API routes (M5)
-  /store                  Zustand store (M2)
-/mcp-server               standalone MCP server, own package.json (M4)
-  index.ts                stdio bootstrap (stub today)
-  /tools                  one file per MCP tool (M4)
-/tests                    Vitest setup + suites
-```
-
-Empty feature folders currently hold a `.gitkeep`; they fill in as milestones complete.
 
 ---
 
 ## Environment variables
 
-Copy `.env.example` → `.env` and fill in as needed. **Secrets are server-side only — the browser never holds a key** (CLAUDE.md §10).
+Live **only** on the server side — the browser never holds a key (CLAUDE.md §10). Set them in `mcp-server/.env`:
 
-| Variable | Used by | Purpose |
-|---|---|---|
-| `ELEVENLABS_API_KEY` | MCP server | ElevenLabs voice transformation (needed from M4). |
-| `AUDIO_TMP_DIR` | MCP server / API | Where converted audio is written and served from by handle. |
+| Variable | Purpose |
+|---|---|
+| `ELEVENLABS_API_KEY` | ElevenLabs voice transformation (required for the transform step). |
+| `AUDIO_TMP_DIR` | Where converted audio is written and served from by handle (optional; sensible default). |
+
+---
+
+## Project layout
+
+```
+app/            Next.js App Router (desktop page + /api routes)
+components/
+  retro/        hand-built 95/98 chrome (Window, Button, Dialog, TaskBar)
+  scenes/       the four Three.js screensavers
+  controls/     recorder, filter picker, sliders
+lib/
+  audio/        pure DSP — features → AnimationParams (no React, no Three)
+  store/        zustand store
+mcp-server/     the standalone MCP server (its own package)
+```
+
+The audio feature extraction is pure and unit-tested; scenes are dumb consumers of an `AnimationParams` object. Change the voice → change the params → change the picture.
 
 ---
 

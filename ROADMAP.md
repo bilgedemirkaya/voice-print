@@ -1,4 +1,4 @@
-# ROADMAP.md — VOICESCREEN.SCR
+# ROADMAP.md — VOICEPRINT.SCR
 
 > Build plan for the retro-90s voice visualizer described in [CLAUDE.md](CLAUDE.md).
 > Each milestone is **independently buildable and independently testable**. Ship in order; don't start a milestone until the previous one's exit criteria are green.

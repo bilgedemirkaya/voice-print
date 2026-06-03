@@ -18,8 +18,14 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
 
 export type Voice = { id: string; name: string; labels: Record<string, string> };
 
-/** One converted take of the current recording. */
-export type Conversion = { voiceId: string; voiceName: string; url: string };
+/** One converted take of the current recording, with its own scene + color identity. */
+export type Conversion = {
+  voiceId: string;
+  voiceName: string;
+  url: string;
+  sceneId: SceneId;
+  palette: [string, string, string];
+};
 
 export type VoicesStatus = "idle" | "loading" | "ready" | "error";
 
@@ -37,6 +43,8 @@ type AudioState = {
   conversions: Conversion[];
   transforming: boolean;
   transformError: string | null;
+  // whether a visualization clip is currently being recorded for export
+  exporting: boolean;
   // display
   crtEnabled: boolean;
   soundEnabled: boolean;
@@ -60,6 +68,7 @@ type AudioState = {
   addConversion: (conversion: Conversion) => void;
   setTransforming: (transforming: boolean) => void;
   setTransformError: (error: string | null) => void;
+  setExporting: (exporting: boolean) => void;
   setCrtEnabled: (enabled: boolean) => void;
   setSoundEnabled: (enabled: boolean) => void;
   setPlayingLabel: (label: string | null) => void;
@@ -80,6 +89,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   conversions: [],
   transforming: false,
   transformError: null,
+  exporting: false,
   crtEnabled: true,
   soundEnabled: true,
   playingLabel: null,
@@ -95,7 +105,8 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   setTargetVoiceId: (targetVoiceId) => set({ targetVoiceId }),
   setVoiceSettings: (voiceSettings) => set({ voiceSettings }),
   // a new recording invalidates prior conversions (they were of the old audio)
-  setRecordedBlob: (recordedBlob) => set({ recordedBlob, dirty: true, conversions: [] }),
+  setRecordedBlob: (recordedBlob) =>
+    set({ recordedBlob, dirty: true, conversions: [], voicePalette: null }),
   addConversion: (conversion) =>
     set((s) => {
       const index = s.conversions.findIndex((c) => c.voiceId === conversion.voiceId);
@@ -107,6 +118,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
     }),
   setTransforming: (transforming) => set({ transforming }),
   setTransformError: (transformError) => set({ transformError }),
+  setExporting: (exporting) => set({ exporting }),
   setCrtEnabled: (crtEnabled) => set({ crtEnabled }),
   setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
   setPlayingLabel: (playingLabel) => set({ playingLabel }),

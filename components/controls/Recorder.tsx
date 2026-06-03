@@ -5,6 +5,7 @@ import { Button } from "@/components/retro/Button";
 import { VuMeter } from "@/components/controls/VuMeter";
 import { sfx } from "@/lib/sfx";
 import { createAudioAnalyser, type AudioAnalyser } from "@/lib/audio/analyser";
+import { exportSceneVideo } from "@/lib/exportVideo";
 import { useAudioStore } from "@/lib/store/audioStore";
 import { cn } from "@/lib/cn";
 
@@ -36,9 +37,11 @@ function shortVoiceName(name: string): string {
 export function Recorder({
   onRecorded,
   onAddVoice,
+  getSceneCanvas,
 }: {
   onRecorded?: () => void;
   onAddVoice?: () => void;
+  getSceneCanvas?: () => HTMLCanvasElement | null;
 } = {}) {
   const [status, setStatus] = useState<Status>("idle");
   const [micError, setMicError] = useState<string | null>(null);
@@ -56,6 +59,7 @@ export function Recorder({
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const elementSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const playbackAnalyserRef = useRef<AudioAnalyser | null>(null);
+  const streamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const scrubbingRef = useRef(false);
   const primingRef = useRef(false);
   const pendingPlayRef = useRef(false);
@@ -69,10 +73,30 @@ export function Recorder({
   const transforming = useAudioStore((s) => s.transforming);
   const transformError = useAudioStore((s) => s.transformError);
   const setPlayingLabel = useAudioStore((s) => s.setPlayingLabel);
+  const setActiveScene = useAudioStore((s) => s.setActiveScene);
+  const setVoicePalette = useAudioStore((s) => s.setVoicePalette);
+  const exporting = useAudioStore((s) => s.exporting);
+  const setExporting = useAudioStore((s) => s.setExporting);
 
   const activeConversion = conversions.find((c) => c.voiceId === source) ?? null;
   const currentUrl = source === "original" ? originalUrl : (activeConversion?.url ?? originalUrl);
   const currentLabel = source === "original" ? "You" : (activeConversion?.voiceName ?? "Voice");
+
+  // Each converted voice carries its own screensaver + color; "You" uses the live audio palette.
+  const applyVisualsFor = useCallback(
+    (next: string) => {
+      if (next === "original") {
+        setVoicePalette(null);
+        return;
+      }
+      const conv = conversions.find((c) => c.voiceId === next);
+      if (conv) {
+        setActiveScene(conv.sceneId);
+        setVoicePalette(conv.palette);
+      }
+    },
+    [conversions, setActiveScene, setVoicePalette],
+  );
 
   const ensureContext = useCallback((): AudioContext => {
     if (!contextRef.current || contextRef.current.state === "closed") {
@@ -109,8 +133,9 @@ export function Recorder({
       lastConversionRef.current = latest.url;
       pendingPlayRef.current = true;
       setSource(latest.voiceId);
+      applyVisualsFor(latest.voiceId);
     }
-  }, [conversions]);
+  }, [conversions, applyVisualsFor]);
 
   const maybePlay = useCallback(() => {
     if (!pendingPlayRef.current) return;
@@ -163,22 +188,58 @@ export function Recorder({
     sfx.stop();
   }, [setRecording]);
 
-  const handlePlay = useCallback(() => {
-    const context = ensureContext();
+  // Build the playback graph once: element → destination (audible) + analyser + a stream tap so
+  // export can mux the audio into the recorded clip.
+  const ensureGraph = useCallback((): AudioContext | null => {
     const element = audioElRef.current;
-    if (!element) return;
+    if (!element) return null;
+    const context = ensureContext();
     if (!elementSourceRef.current) {
       elementSourceRef.current = context.createMediaElementSource(element);
       elementSourceRef.current.connect(context.destination);
     }
+    if (!streamDestRef.current) {
+      streamDestRef.current = context.createMediaStreamDestination();
+      elementSourceRef.current.connect(streamDestRef.current);
+    }
     if (!playbackAnalyserRef.current) {
       playbackAnalyserRef.current = createAudioAnalyser(context, elementSourceRef.current, setParams);
     }
+    return context;
+  }, [ensureContext, setParams]);
+
+  const handlePlay = useCallback(() => {
+    const context = ensureGraph();
+    if (!context || !playbackAnalyserRef.current) return;
     if (context.state === "suspended") void context.resume();
     playbackAnalyserRef.current.start();
     setIsPlaying(true);
     setPlayingLabel(currentLabel);
-  }, [ensureContext, setParams, setPlayingLabel, currentLabel]);
+  }, [ensureGraph, setPlayingLabel, currentLabel]);
+
+  // Play the current clip from the top and record the live canvas + its audio into a webm.
+  const handleExport = useCallback(async () => {
+    const canvas = getSceneCanvas?.();
+    const element = audioElRef.current;
+    if (!canvas || !element || !currentUrl || exporting) return;
+    setExporting(true);
+    try {
+      const context = ensureGraph();
+      if (context?.state === "suspended") await context.resume();
+      element.currentTime = 0;
+      await element.play().catch(() => undefined);
+      const durationMs =
+        Number.isFinite(element.duration) && element.duration > 0
+          ? Math.min(element.duration * 1000 + 200, 20000)
+          : 6000;
+      await exportSceneVideo(canvas, {
+        audioStream: streamDestRef.current?.stream ?? null,
+        durationMs,
+      });
+    } finally {
+      setExporting(false);
+    }
+  }, [getSceneCanvas, currentUrl, exporting, ensureGraph, setExporting]);
 
   const handleStop = useCallback(() => {
     playbackAnalyserRef.current?.stop();
@@ -188,6 +249,7 @@ export function Recorder({
 
   const selectSource = useCallback(
     (next: string) => {
+      applyVisualsFor(next);
       if (next === source) {
         void audioElRef.current?.play().catch(() => undefined);
         return;
@@ -195,7 +257,7 @@ export function Recorder({
       pendingPlayRef.current = true;
       setSource(next);
     },
-    [source],
+    [source, applyVisualsFor],
   );
 
   const togglePlay = useCallback(() => {
@@ -358,6 +420,15 @@ export function Recorder({
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
+
+          {getSceneCanvas && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-w95-darkgray">Save a shareable clip of the live visuals.</span>
+              <Button onClick={() => void handleExport()} disabled={exporting}>
+                {exporting ? "● Recording clip…" : "🎬 Export clip"}
+              </Button>
+            </div>
+          )}
 
           <audio
             ref={audioElRef}

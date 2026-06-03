@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-> Project guide for **VOICESCREEN.SCR** — a retro-90s Microsoft-screensaver-style voice visualizer with ElevenLabs voice transformation, wired through an MCP server.
+> Project guide for **VOICEPRINT.SCR** — a retro-90s Microsoft-screensaver-style voice visualizer with ElevenLabs voice transformation, wired through an MCP server.
 >
 > This file is the single source of truth for how the project is built and why. Read it before writing code.
 

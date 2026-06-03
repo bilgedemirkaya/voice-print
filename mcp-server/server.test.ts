@@ -46,7 +46,7 @@ async function connectedClient(): Promise<Client> {
 }
 
 beforeAll(async () => {
-  tmpDir = await mkdtemp(path.join(os.tmpdir(), "voicescreen-test-"));
+  tmpDir = await mkdtemp(path.join(os.tmpdir(), "voiceprint-test-"));
   process.env.AUDIO_TMP_DIR = tmpDir;
   process.env.ELEVENLABS_API_KEY = SECRET;
 });

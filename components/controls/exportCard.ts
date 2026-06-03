@@ -61,7 +61,7 @@ export function exportVoiceCard(opts: {
 
   ctx.fillStyle = "#9b8fb3";
   ctx.font = "10px 'MS Sans Serif', Tahoma, sans-serif";
-  ctx.fillText("VOICESCREEN.SCR", 16, H - 14);
+  ctx.fillText("VOICEPRINT.SCR", 16, H - 14);
 
   canvas.toBlob((blob) => {
     if (!blob) return;
