@@ -52,7 +52,7 @@ export default function DesktopPage() {
   // Prefetch voices + restore any saved bring-your-own-key once on mount.
   useEffect(() => {
     void loadVoices();
-    useAudioStore.getState().hydrateUserApiKey();
+    useAudioStore.getState().hydrateAccess();
   }, [loadVoices]);
 
   // Open the settings dialog only once voices have settled — avoids an empty/loading flash.

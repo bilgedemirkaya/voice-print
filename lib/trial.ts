@@ -1,7 +1,7 @@
 // Server-only: signs/verifies the per-visitor free-trial counter with an HMAC so the client
 // can't forge a lower count. Stateless (no DB), so it works on serverless. node:crypto keeps
-// this off any client bundle. Clearing cookies resets the trial — acceptable as a soft gate;
-// add a per-IP store (e.g. Upstash) if you need protection against that.
+// this off any client bundle. Clearing cookies resets this per-browser soft gate; the hard,
+// cookie-proof per-IP cap lives in lib/trialIp.ts (Upstash).
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { TRIAL_COOKIE } from "./trialConfig";
 

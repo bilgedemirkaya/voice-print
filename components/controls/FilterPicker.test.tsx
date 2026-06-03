@@ -38,6 +38,7 @@ function resetStore() {
     soundEnabled: true,
     voicePalette: null,
     dirty: false,
+    accessCode: null,
     userApiKey: null,
     trialRemaining: null,
     voices: [],
@@ -63,6 +64,12 @@ beforeEach(() => {
       if (url.includes("/api/transform")) {
         transformInit = init;
         return transformResponse();
+      }
+      if (url.includes("/api/access")) {
+        const body = init?.body ? (JSON.parse(String(init.body)) as { code?: string }) : {};
+        return new Response(JSON.stringify({ ok: (body.code ?? "").toUpperCase() === "GOODCODE" }), {
+          status: 200,
+        });
       }
       return new Response("nope", { status: 404 });
     }),
@@ -196,17 +203,29 @@ describe("FilterPicker", () => {
     expect(useAudioStore.getState().soundEnabled).toBe(false);
   });
 
-  it("shows the free-trial counter and saves a bring-your-own-key", async () => {
+  it("shows the free-trial counter and unlocks with a valid access code", async () => {
     const user = userEvent.setup();
     render(<FilterPicker />);
     await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
 
     expect(screen.getByText("Free voices left: 2 / 2")).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("ElevenLabs API key"), "xi-my-key");
+    await user.type(screen.getByLabelText("Access code"), "GOODCODE");
+    await user.click(screen.getByRole("button", { name: "Unlock" }));
+
+    await waitFor(() => expect(useAudioStore.getState().accessCode).toBe("GOODCODE"));
+    expect(screen.getByText(/Access code accepted/i)).toBeInTheDocument();
+  });
+
+  it("lets a visitor save their own ElevenLabs key", async () => {
+    const user = userEvent.setup();
+    render(<FilterPicker />);
+    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+
+    await user.type(screen.getByLabelText("ElevenLabs API key"), "xi-mine");
     await user.click(screen.getByRole("button", { name: "Save key" }));
 
-    expect(useAudioStore.getState().userApiKey).toBe("xi-my-key");
-    expect(screen.getByText(/Using your ElevenLabs key/i)).toBeInTheDocument();
+    expect(useAudioStore.getState().userApiKey).toBe("xi-mine");
+    expect(screen.getByText(/Using your own ElevenLabs key/i)).toBeInTheDocument();
   });
 });

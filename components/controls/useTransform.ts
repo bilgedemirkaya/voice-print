@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import { useAudioStore } from "@/lib/store/audioStore";
 import { sfx } from "@/lib/sfx";
 import { voicePaletteForLabels } from "@/lib/voicePalette";
-import { BYOK_HEADER } from "@/lib/trialConfig";
+import { ACCESS_CODE_HEADER, BYOK_HEADER } from "@/lib/trialConfig";
 
 /** Turn ElevenLabs' raw error JSON into a short, friendly message. */
 function friendlyError(message: string): string {
@@ -42,8 +42,14 @@ export function useTransform() {
       form.append("targetVoiceId", state.targetVoiceId);
       form.append("settings", JSON.stringify(state.voiceSettings));
 
-      const headers = state.userApiKey ? { [BYOK_HEADER]: state.userApiKey } : undefined;
-      const res = await fetch("/api/transform", { method: "POST", body: form, headers });
+      const headers: Record<string, string> = {};
+      if (state.accessCode) headers[ACCESS_CODE_HEADER] = state.accessCode;
+      if (state.userApiKey) headers[BYOK_HEADER] = state.userApiKey;
+      const res = await fetch("/api/transform", {
+        method: "POST",
+        body: form,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
+      });
       const data = (await res.json()) as {
         resultHandle?: string;
         error?: string;

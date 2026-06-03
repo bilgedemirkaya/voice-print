@@ -107,7 +107,11 @@ export function Wavefield() {
 /** Canvas wrapper. Loaded client-side only (WebGL) — import via next/dynamic with ssr:false. */
 export function WavefieldCanvas() {
   return (
-    <Canvas dpr={[1, 2]} camera={{ position: [0, 1.6, 5], fov: 50 }} gl={{ antialias: true }}>
+    <Canvas
+      dpr={[1, 2]}
+      camera={{ position: [0, 1.6, 5], fov: 50 }}
+      gl={{ antialias: true, preserveDrawingBuffer: true }}
+    >
       <color attach="background" args={["#140a28"]} />
       <Wavefield />
     </Canvas>

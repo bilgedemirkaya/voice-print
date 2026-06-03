@@ -6,6 +6,7 @@ import { VuMeter } from "@/components/controls/VuMeter";
 import { sfx } from "@/lib/sfx";
 import { createAudioAnalyser, type AudioAnalyser } from "@/lib/audio/analyser";
 import { exportSceneVideo } from "@/lib/exportVideo";
+import { exportSceneGif } from "@/lib/exportGif";
 import { useAudioStore } from "@/lib/store/audioStore";
 import { cn } from "@/lib/cn";
 
@@ -50,6 +51,7 @@ export function Recorder({
   const [duration, setDuration] = useState(0);
   const [source, setSource] = useState<string>("original"); // "original" or a voiceId
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<"webm" | "gif">("webm");
 
   const contextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -228,18 +230,21 @@ export function Recorder({
       if (context?.state === "suspended") await context.resume();
       element.currentTime = 0;
       await element.play().catch(() => undefined);
-      const durationMs =
-        Number.isFinite(element.duration) && element.duration > 0
-          ? Math.min(element.duration * 1000 + 200, 20000)
-          : 6000;
-      await exportSceneVideo(canvas, {
-        audioStream: streamDestRef.current?.stream ?? null,
-        durationMs,
-      });
+      const clipMs =
+        Number.isFinite(element.duration) && element.duration > 0 ? element.duration * 1000 : 0;
+      if (exportFormat === "gif") {
+        // GIFs are silent + balloon fast, so cap shorter; audio still plays to drive the visuals.
+        await exportSceneGif(canvas, { durationMs: clipMs ? Math.min(clipMs, 6000) : 5000 });
+      } else {
+        await exportSceneVideo(canvas, {
+          audioStream: streamDestRef.current?.stream ?? null,
+          durationMs: clipMs ? Math.min(clipMs + 200, 20000) : 6000,
+        });
+      }
     } finally {
       setExporting(false);
     }
-  }, [getSceneCanvas, currentUrl, exporting, ensureGraph, setExporting]);
+  }, [getSceneCanvas, currentUrl, exporting, exportFormat, ensureGraph, setExporting]);
 
   const handleStop = useCallback(() => {
     playbackAnalyserRef.current?.stop();
@@ -423,10 +428,22 @@ export function Recorder({
 
           {getSceneCanvas && (
             <div className="flex items-center justify-between gap-2">
-              <span className="text-w95-darkgray">Save a shareable clip of the live visuals.</span>
-              <Button onClick={() => void handleExport()} disabled={exporting}>
-                {exporting ? "● Recording clip…" : "🎬 Export clip"}
-              </Button>
+              <span className="text-w95-darkgray">Save a shareable clip:</span>
+              <div className="flex items-center gap-1">
+                <select
+                  aria-label="Export format"
+                  value={exportFormat}
+                  onChange={(event) => setExportFormat(event.target.value as "webm" | "gif")}
+                  disabled={exporting}
+                  className="bevel-inset bg-white px-1 py-0.5"
+                >
+                  <option value="webm">Video + sound</option>
+                  <option value="gif">GIF</option>
+                </select>
+                <Button onClick={() => void handleExport()} disabled={exporting}>
+                  {exporting ? "● Exporting…" : "🎬 Export"}
+                </Button>
+              </div>
             </div>
           )}
 

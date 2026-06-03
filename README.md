@@ -1,31 +1,26 @@
 # VOICEPRINT.SCR
 
-> _Record your voice. Watch it become a 1998 screensaver. Change the voice — watch the screensaver change with it._
+> _Record your voice. Watch it become a 1998 screensaver. Select the voice, watch the screensaver change with it._
 
-A retro Windows 95/98 desktop that turns your voice into a live WebGL screensaver. Speak once, and the waveform, colors, and motion are all driven by **your** audio. Then run your voice through ElevenLabs filters — "radio announcer", "deep", "chipmunk" — and the screensaver visibly morphs to match the new voice. Each voice even gets its own screensaver and color identity.
+<p align="center">
+  <video src="docs/demo.webm" controls muted loop width="680"></video>
+</p>
 
-It's a portfolio piece with two things to show off:
-
-1. **Front-end craft** — a hand-built 95/98 desktop (no UI kit) married to real-time, audio-reactive Three.js.
-2. **A real MCP server** — every ElevenLabs call goes through a standalone [Model Context Protocol](https://modelcontextprotocol.io) server, not a `fetch` buried in a component. The browser never sees an API key.
+<!--
+  Demo video: export a "Video + sound" clip in the app (downloads voiceprint.webm), then either
+  (a) drag it into the GitHub README/PR editor to get a hosted …/assets/… URL GitHub auto-embeds, or
+  (b) commit it to docs/demo.webm (the relative <video> src above). GitHub plays .webm and .mp4.
+-->
 
 ---
 
-## The 30-second tour
+## What is this?
 
-```
-🎙️  record your voice  ──►  📊  it's analyzed live  ──►  🌌  screensaver reacts
-                                                              │
-                          🎛️  pick a vibe (gender / age / accent)
-                                                              │
-                          🔌  MCP server ──► ElevenLabs voice changer
-                                                              │
-                          🔁  new voice ──► new colors, new motion, new scene
-                                                              │
-                          🎬  export it as a shareable voiceprint clip
-```
+Boot it up and you land on a pixel-perfect **Windows 95/98 desktop**. Hit record, say a sentence, and a WebGL **screensaver springs to life — driven entirely by your voice.** Loud and bright? The colors run hot and the motion spikes. Low and calm? It cools down and settles.
 
-The payoff: you hear a different voice and **see** the visualization change at the same time.
+Open **Display Properties → Screen Saver** dialog and dial in a *vibe*; gender, age, accent, mood. Behind the scenes that picks a real ElevenLabs voice and **transforms your recording through it.** Depending on the pick the screensaver **visibly transforms too**: new palette, new energy, a different waveform shape. You *hear* a new voice and *see* the visuals answer at the same instant.
+
+Stack up a few voices in the **A/B compare gallery** — each one remembers its own screensaver and color identity, so flipping between them flips the entire mood. When you found the one, **export it as a shareable "voiceprint"** — a video with sound, or a silent GIF — and post it.
 
 ---
 
@@ -47,7 +42,7 @@ pnpm dev
 
 Open **http://localhost:3000** and you'll boot straight into the desktop.
 
-> No ElevenLabs key? The desktop, recording, and live visualization all work — only the voice _transform_ step needs a key. Grab a free one at [elevenlabs.io](https://elevenlabs.io).
+> No ElevenLabs key? The desktop, recording, and live visualization all work — only the voice _transform_ step needs one. Grab a free key at [elevenlabs.io](https://elevenlabs.io).
 
 ---
 
@@ -57,12 +52,25 @@ Open **http://localhost:3000** and you'll boot straight into the desktop.
 2. The **Display Properties → Screen Saver** dialog pops open. Here you:
    - dial in a **vibe** with the Gender / Age / Accent / Vibe filters (they cascade — picking one narrows the rest, and the system matches you to a real ElevenLabs voice),
    - pick a **screensaver** (WAVEFIELD, MYSTIFY, STARFIELD, PIPES),
-   - tweak **Stability / Similarity / Style**, then hit **Apply**.
+   - tune **Stability / Similarity / Style**, then hit **Apply**.
 3. Your clip gets transformed and plays back — the visualization takes on that voice's **color** and **scene**.
-4. Use the **You / Voice A / Voice B / +** tabs to A/B them. Each voice remembers its own screensaver and palette, so flipping tabs flips the whole vibe.
-5. Hit **🎬 Export clip** to download a `voiceprint.webm` of the live visualization — the most shareable artifact.
+4. Use the **You / Voice A / Voice B / +** tabs to A/B them. Each voice keeps its own screensaver and palette, so flipping tabs flips the whole vibe.
+5. In the player, pick a format — **Video + sound** (`voiceprint.webm`) or **GIF** (`voiceprint.gif`) — and hit **🎬 Export** to download your shareable voiceprint of the live visuals.
 
-Bonus toggles: **CRT** scanlines and **Sounds** (synthesized 90s UI beeps). Everything respects `prefers-reduced-motion` and works on mobile.
+Bonus toggles: **CRT** scanlines and **Sounds** (synthesized 90s UI beeps).
+
+---
+
+## Access: local, free trial, code, or your own key
+
+So the public demo doesn't drain one ElevenLabs account, transforms are gated — with several ways through:
+
+- **Running locally** (`pnpm dev`) → **unlimited**, no prompt; it just uses your key in `mcp-server/.env`.
+- **New visitors** get a couple of **free transforms** on the shared key. The count is tracked in a **signed, httpOnly cookie** (server-verified, so it can't be forged), with an **optional per-IP backstop** (Upstash Redis) that survives cookie-clearing.
+- **Friends with the access code** enter it once for **unlimited** transforms on the host's key. The code is read from the `ACCESS_CODE` env var only — never committed — so it stays a shared secret (think discount code).
+- **Anyone else** can paste their **own ElevenLabs key**, kept **in the browser only** (sessionStorage), sent per-request, and **never stored or logged** on the server.
+
+All of this is configurable — see the env vars below.
 
 ---
 
@@ -75,16 +83,14 @@ Browser (Next.js + react-three-fiber)
   · 95/98 desktop, mic capture, Web Audio analysis → live Three.js scenes
         │  HTTP
 Next.js server (API routes)
-  · holds the keys, acts as the MCP *client*
+  · holds the shared key, enforces the trial, acts as the MCP *client*
         │  MCP (stdio)
 MCP server (standalone Node process)
-  · tools: list_voices, get_voice_settings, transform_voice, suggest_filter
+  · tools: list_voices, get_voice_settings, transform_voice
   · the only place ElevenLabs is ever called
 ```
 
 Audio moves around as **handles**, never giant base64 blobs — the MCP server writes converted clips to a temp store and hands back a URL.
-
-Want the full design rationale? It all lives in **[CLAUDE.md](CLAUDE.md)**.
 
 ---
 
@@ -97,7 +103,7 @@ pnpm mcp:dev      # run the MCP server standalone (stdio)
 
 pnpm typecheck    # tsc, app + mcp-server
 pnpm lint         # eslint, app + mcp-server
-pnpm test         # vitest, app + mcp-server  (94 tests)
+pnpm test         # vitest, app + mcp-server  (98 tests)
 pnpm format       # prettier
 ```
 
@@ -105,12 +111,16 @@ pnpm format       # prettier
 
 ## Environment variables
 
-Live **only** on the server side — the browser never holds a key (CLAUDE.md §10). Set them in `mcp-server/.env`:
+Secrets live **only** on the server (CLAUDE.md §10). The ElevenLabs key goes in `mcp-server/.env`; the rest are for the Next app (`.env` / `.env.local`) and are all optional.
 
-| Variable | Purpose |
-|---|---|
-| `ELEVENLABS_API_KEY` | ElevenLabs voice transformation (required for the transform step). |
-| `AUDIO_TMP_DIR` | Where converted audio is written and served from by handle (optional; sensible default). |
+| Variable | Where | Purpose |
+|---|---|---|
+| `ELEVENLABS_API_KEY` | `mcp-server/.env` | The shared key powering voice transforms. **Required** to transform. |
+| `AUDIO_TMP_DIR` | `mcp-server/.env` | Where converted audio is written/served by handle. |
+| `ACCESS_CODE` | Next app | Shared code that unlocks unlimited transforms for friends. Unset = no code unlocks (BYOK + trial still work). |
+| `TRIAL_COOKIE_SECRET` | Next app | Signs the free-trial cookie. Set a random value in prod (dev default otherwise). |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | Next app | Optional per-IP backstop. Blank = cookie-only. Free DB at [Upstash](https://console.upstash.com). |
+| `TRIAL_IP_DAILY_CAP` | Next app | Max free transforms per IP per day (default 10). |
 
 ---
 
@@ -121,10 +131,11 @@ app/            Next.js App Router (desktop page + /api routes)
 components/
   retro/        hand-built 95/98 chrome (Window, Button, Dialog, TaskBar)
   scenes/       the four Three.js screensavers
-  controls/     recorder, filter picker, sliders
+  controls/     recorder, filter picker, sliders, export
 lib/
   audio/        pure DSP — features → AnimationParams (no React, no Three)
   store/        zustand store
+  trial.ts      signed-cookie free-trial gate;  trialIp.ts  per-IP Upstash backstop
 mcp-server/     the standalone MCP server (its own package)
 ```
 
@@ -134,4 +145,4 @@ The audio feature extraction is pure and unit-tested; scenes are dumb consumers 
 
 ## Tech stack
 
-Next.js (App Router) · TypeScript (strict) · Tailwind CSS v4 · Three.js + @react-three/fiber + drei · Zustand · Framer Motion · Vitest · `@modelcontextprotocol/sdk`. Full rationale in [CLAUDE.md §3](CLAUDE.md).
+Next.js (App Router) · TypeScript (strict) · Tailwind CSS v4 · Three.js + @react-three/fiber + drei · Zustand · Framer Motion · Vitest · `@modelcontextprotocol/sdk`.

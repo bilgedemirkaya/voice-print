@@ -52,6 +52,8 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const voices = useAudioStore((s) => s.voices);
   const voicesError = useAudioStore((s) => s.voicesError);
   const loadVoices = useAudioStore((s) => s.loadVoices);
+  const accessCode = useAudioStore((s) => s.accessCode);
+  const setAccessCode = useAudioStore((s) => s.setAccessCode);
   const userApiKey = useAudioStore((s) => s.userApiKey);
   const setUserApiKey = useAudioStore((s) => s.setUserApiKey);
   const trialRemaining = useAudioStore((s) => s.trialRemaining);
@@ -60,9 +62,33 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const sceneName = SCENES.find((s) => s.id === activeScene)?.name ?? activeScene;
   const voiceName = voices.find((v) => v.id === targetVoiceId)?.name ?? targetVoiceId;
   const [activeHint, setActiveHint] = useState(SLIDERS[0].hint);
+  const [codeDraft, setCodeDraft] = useState("");
   const [keyDraft, setKeyDraft] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
+  // Local dev is unlimited; otherwise the trial applies until a code or a personal key unlocks it.
+  const isLocal = process.env.NODE_ENV === "development";
+  const unlocked = isLocal || Boolean(accessCode) || Boolean(userApiKey);
   const freeLeft = trialRemaining ?? FREE_TRIAL_LIMIT;
-  const trialBlocked = !userApiKey && freeLeft <= 0;
+  const trialBlocked = !unlocked && freeLeft <= 0;
+
+  const submitCode = async (): Promise<void> => {
+    const code = codeDraft.trim();
+    if (!code) return;
+    const res = await fetch("/api/access", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = (await res.json().catch(() => ({ ok: false }))) as { ok?: boolean };
+    if (data.ok) {
+      setAccessCode(code);
+      setCodeDraft("");
+      setCodeError(null);
+      setDirty(true);
+    } else {
+      setCodeError("That code didn't work.");
+    }
+  };
   const [filters, setFilters] = useState<Record<string, string>>({
     gender: "",
     age: "",
@@ -250,11 +276,27 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
         </label>
       </div>
 
-      {/* Free-trial counter + bring-your-own-key (CLAUDE.md §6 — key never persisted server-side). */}
+      {/* Local dev is unlimited; deployed visitors get a free trial, then a code or their own key. */}
       <div className="bevel-inset flex flex-col gap-1.5 bg-white p-2">
-        {userApiKey ? (
+        {isLocal ? (
+          <span className="font-bold">🔓 Running locally — unlimited transforms.</span>
+        ) : accessCode ? (
           <div className="flex items-center justify-between gap-2">
-            <span className="font-bold">🔑 Using your ElevenLabs key.</span>
+            <span className="font-bold">🔓 Access code accepted — unlimited transforms.</span>
+            <button
+              type="button"
+              onClick={() => {
+                setAccessCode(null);
+                setDirty(true);
+              }}
+              className="bevel-raised active:bevel-pressed bg-w95-silver px-2 py-0.5"
+            >
+              Remove
+            </button>
+          </div>
+        ) : userApiKey ? (
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-bold">🔑 Using your own ElevenLabs key.</span>
             <button
               type="button"
               onClick={() => {
@@ -271,18 +313,41 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
             <span className={cn("font-bold", trialBlocked && "text-[#b00020]")}>
               {trialBlocked ? "Free trial used up" : `Free voices left: ${freeLeft} / ${FREE_TRIAL_LIMIT}`}
             </span>
-            <p className="text-[10px] italic leading-tight text-w95-darkgray">
-              Add your own ElevenLabs key for unlimited transforms —{" "}
+
+            <label className="text-[10px] text-w95-darkgray">Got an access code?</label>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={codeDraft}
+                onChange={(event) => {
+                  setCodeDraft(event.target.value);
+                  setCodeError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void submitCode();
+                }}
+                placeholder="Access code"
+                aria-label="Access code"
+                className="bevel-inset min-w-0 flex-1 bg-white px-1 py-0.5"
+              />
+              <Button onClick={() => void submitCode()} disabled={!codeDraft.trim()}>
+                Unlock
+              </Button>
+            </div>
+            {codeError && <p className="text-[10px] text-[#b00020]">{codeError}</p>}
+
+            <label className="text-[10px] leading-tight text-w95-darkgray">
+              Or use your own ElevenLabs key —{" "}
               <a
                 href="https://elevenlabs.io/app/settings/api-keys"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-w95-navy underline"
               >
-                get a free key
-              </a>
-              . Stored only in your browser, never on our server.
-            </p>
+                get one free
+              </a>{" "}
+              (kept in your browser only).
+            </label>
             <div className="flex gap-1">
               <input
                 type="password"
