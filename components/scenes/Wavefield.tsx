@@ -2,10 +2,8 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { useReducedMotion } from "framer-motion";
 import * as THREE from "three";
-import type { BloomEffect } from "postprocessing";
 import { useAudioStore } from "@/lib/store/audioStore";
 import { wavefieldUniforms } from "./wavefieldUniforms";
 
@@ -33,6 +31,7 @@ export function Wavefield() {
   const mid = useMemo(() => new THREE.Color(), []);
   const high = useMemo(() => new THREE.Color(), []);
   const scratch = useMemo(() => new THREE.Color(), []);
+  const white = useMemo(() => new THREE.Color(1, 1, 1), []);
 
   useEffect(() => {
     const geom = geomRef.current;
@@ -56,6 +55,8 @@ export function Wavefield() {
     const u = wavefieldUniforms(params, { reducedMotion: reduced });
     timeRef.current += delta * u.speed;
     const t = timeRef.current;
+    // Neon glow: with additive blending, brighter crests bloom harder the louder you are.
+    const glow = reduced ? 0 : Math.min(0.7, params.energy * 0.55);
 
     low.set(u.palette[0]);
     mid.set(u.palette[1]);
@@ -87,6 +88,7 @@ export function Wavefield() {
         const h = THREE.MathUtils.clamp(z / (u.amplitude * 1.6) + 0.5, 0, 1);
         if (h < 0.5) scratch.copy(low).lerp(mid, h * 2);
         else scratch.copy(mid).lerp(high, (h - 0.5) * 2);
+        if (glow > 0) scratch.lerp(white, glow * h);
         const c = i * 3;
         colors[c] = scratch.r;
         colors[c + 1] = scratch.g;
@@ -101,27 +103,21 @@ export function Wavefield() {
   return (
     <mesh rotation={[-Math.PI / 2.4, 0, 0]} position={[0, -0.5, 0]}>
       <planeGeometry ref={geomRef} args={[WIDTH, DEPTH, SEG_X, SEG_Y]} />
-      <meshBasicMaterial vertexColors wireframe transparent opacity={0.95} />
+      <meshBasicMaterial
+        vertexColors
+        wireframe
+        transparent
+        opacity={0.92}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        toneMapped={false}
+      />
     </mesh>
-  );
-}
-
-/** Neon CRT glow: bloom whose intensity swells with the voice's energy (damped if reduced-motion). */
-function ReactiveBloom({ reduced }: { reduced: boolean }) {
-  const ref = useRef<BloomEffect | null>(null);
-  useFrame(() => {
-    if (!ref.current) return;
-    const energy = useAudioStore.getState().params.energy;
-    ref.current.intensity = reduced ? 0.7 : 0.45 + energy * 2.6;
-  });
-  return (
-    <Bloom ref={ref} mipmapBlur luminanceThreshold={0.12} luminanceSmoothing={0.4} intensity={0.8} />
   );
 }
 
 /** Canvas wrapper. Loaded client-side only (WebGL) — import via next/dynamic with ssr:false. */
 export function WavefieldCanvas() {
-  const reduced = useReducedMotion() ?? false;
   return (
     <Canvas
       dpr={[1, 2]}
@@ -130,9 +126,6 @@ export function WavefieldCanvas() {
     >
       <color attach="background" args={["#140a28"]} />
       <Wavefield />
-      <EffectComposer>
-        <ReactiveBloom reduced={reduced} />
-      </EffectComposer>
     </Canvas>
   );
 }

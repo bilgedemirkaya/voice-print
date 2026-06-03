@@ -9,7 +9,6 @@ vi.mock("@/components/scenes/registry", () => ({
     { id: "wavefield", name: "WAVEFIELD", implemented: true },
     { id: "mystify", name: "MYSTIFY", implemented: false },
     { id: "starfield", name: "STARFIELD", implemented: false },
-    { id: "pipes", name: "PIPES", implemented: false },
   ],
   SceneView: () => null,
 }));

@@ -46,7 +46,7 @@ Open **http://localhost:3000** and you'll boot straight into the desktop.
 1. **Hit record** and say something. The screensaver starts dancing to your voice immediately.
 2. The **Display Properties → Screen Saver** dialog pops open. Here you:
    - dial in a **vibe** with the Gender / Age / Accent / Vibe filters (they cascade — picking one narrows the rest, and the system matches you to a real ElevenLabs voice),
-   - pick a **screensaver** — WAVEFIELD, MYSTIFY, STARFIELD, PIPES, **NYAN** (a pixel cat that bobs to your voice), or **TOASTERS** (the After Dark flying toasters, wings flapping to your voice),
+   - pick a **screensaver** — WAVEFIELD, MYSTIFY, STARFIELD, **NYAN** (a pixel cat that bobs to your voice), or **TOASTERS** (the After Dark flying toasters, wings flapping to your voice),
    - tune **Stability / Similarity / Style**, then hit **Apply**.
 3. Your clip gets transformed and plays back — the visualization takes on that voice's **color** and **scene**.
 4. Use the **You / Voice A / Voice B / +** tabs to A/B them. Each voice keeps its own screensaver and palette, so flipping tabs flips the whole vibe.

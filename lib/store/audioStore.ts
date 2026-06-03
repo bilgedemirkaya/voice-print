@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { silentParams } from "@/lib/audio/params";
 import type { AnimationParams } from "@/lib/audio/types";
 
-export type SceneId = "wavefield" | "mystify" | "starfield" | "pipes" | "nyan" | "toasters";
+export type SceneId = "wavefield" | "mystify" | "starfield" | "nyan" | "toasters";
 
 export type VoiceSettings = {
   stability: number;
