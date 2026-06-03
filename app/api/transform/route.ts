@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { transformVoice, type VoiceSettings } from "@/lib/mcp-client";
-import { extForMimeType, writeAudio } from "@/lib/store/audioFiles";
+import { speechToSpeech, type VoiceSettings } from "@/lib/elevenlabs";
+import { writeAudio } from "@/lib/store/audioFiles";
 import { ACCESS_CODE_HEADER, BYOK_HEADER, FREE_TRIAL_LIMIT, TRIAL_COOKIE } from "@/lib/trialConfig";
 import { readTrialFromRequest, signTrialCount } from "@/lib/trial";
 import { bumpIp, isIpRateLimited } from "@/lib/trialIp";
@@ -8,10 +8,10 @@ import { isLocalDev, isValidAccessCode } from "@/lib/access";
 
 const TRIAL_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
-// Browser → here → MCP client → transform_voice → ElevenLabs. The host's key always stays
-// server-side. Trial is skipped when: local dev, a valid shared access code (uses the host key),
-// or the visitor brought their own key (used per-request, never stored). Otherwise the free-trial
-// gate (signed cookie + optional per-IP backstop) applies.
+// Browser → here → ElevenLabs (server-side). The host's key always stays server-side. Trial is
+// skipped when: local dev, a valid shared access code (uses the host key), or the visitor brought
+// their own key (used per-request, never stored). Otherwise the free-trial gate (signed cookie +
+// optional per-IP backstop) applies.
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const userKey = request.headers.get(BYOK_HEADER)?.trim() || undefined;
@@ -65,10 +65,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const buffer = Buffer.from(await audio.arrayBuffer());
-    const audioHandle = await writeAudio(buffer, extForMimeType(audio.type || "audio/webm"));
-
     // apiKey present → BYOK (visitor's key); undefined → host key (local / valid code / trial).
-    const result = await transformVoice({ audioHandle, targetVoiceId, settings, apiKey: userKey });
+    const converted = await speechToSpeech({
+      voiceId: targetVoiceId,
+      audio: buffer,
+      audioContentType: audio.type || "audio/webm",
+      settings,
+      apiKey: userKey,
+    });
+    const resultHandle = await writeAudio(converted.audio, "mp3");
+    const result = { resultHandle, durationMs: converted.durationMsApprox, voiceId: targetVoiceId };
 
     // Count this transform only now that it succeeded; failures don't burn a free try.
     const remaining = bypassTrial ? null : Math.max(0, FREE_TRIAL_LIMIT - (used + 1));

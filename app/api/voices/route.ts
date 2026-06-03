@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { listVoices } from "@/lib/mcp-client";
+import { listVoices } from "@/lib/elevenlabs";
 
-// Populates the voice picker via the MCP server's list_voices tool.
+// Populates the voice picker from ElevenLabs (GET /v1/voices), server-side — the key never leaks.
 export async function GET(): Promise<NextResponse> {
   try {
     return NextResponse.json({ voices: await listVoices() });

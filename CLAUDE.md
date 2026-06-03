@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-> Project guide for **VOICEPRINT.SCR** — a retro-90s Microsoft-screensaver-style voice visualizer with ElevenLabs voice transformation, wired through an MCP server.
+> Project guide for **VOICEPRINT.SCR** — a retro-90s Microsoft-screensaver-style voice visualizer with ElevenLabs voice transformation, called server-side from the Next.js app.
 >
 > This file is the single source of truth for how the project is built and why. Read it before writing code.
 
@@ -11,7 +11,9 @@
 A portfolio piece. The headline goal is **not** "a screensaver app" — it's to demonstrate two skills convincingly:
 
 1. **Frontend / UI-UX craft** — a polished, tasteful recreation of the Windows 95/98 desktop aesthetic married to real-time WebGL audio-reactive visuals. The work should look intentional and designed, not like a default Bootstrap page with a teal background.
-2. **MCP server integration** — voice transformation is not called directly from a fetch in a React component. It goes through a custom **Model Context Protocol (MCP) server** that exposes ElevenLabs operations as tools.
+2. **Real-time audio engineering + a clean full-stack integration** — pure-function DSP turns the voice into typed `AnimationParams` that drive the visuals, and ElevenLabs is integrated securely server-side (the browser never holds a key) behind a layered access model (local / free-trial / access-code / bring-your-own-key).
+
+> **Architecture note:** an earlier version routed ElevenLabs through a standalone MCP server. It was removed — this app has no LLM in the loop, and MCP exists to expose tools to an LLM host, so it was indirection without a payoff. ElevenLabs is now called directly from the Next.js server in `lib/elevenlabs.ts`.
 
 Everything below serves those two goals. When a decision is ambiguous, pick the option that better *shows the skill*.
 
@@ -30,7 +32,7 @@ record once → analyze → visualize
         ↓
 pick a filter
         ↓
-MCP tool → ElevenLabs voice transform
+Next.js API route → ElevenLabs voice transform
         ↓
 new audio → re-analyze → animation changes
 ```
@@ -52,8 +54,8 @@ These extend the brief without changing its spirit. Treat as opt-in:
 | Framework | **Next.js (App Router) + TypeScript** | Server routes handle secrets + heavy audio work. |
 | Rendering | **Three.js via `@react-three/fiber`** + `@react-three/drei` | r3f gives a clean React DX for the scenes. Plain three.js is fine if a scene needs imperative control. |
 | Audio analysis | **Web Audio API** (`AnalyserNode`) | FFT + time-domain data drive the visuals. No external lib needed. |
-| Voice transform | **ElevenLabs API** (Speech-to-Speech / Voice Changer) | The core integration. Called *via the MCP server*, not directly from the client. |
-| Integration layer | **MCP server** (`@modelcontextprotocol/sdk`, TypeScript) | Exposes ElevenLabs ops as MCP tools. The portfolio centerpiece. || Styling | **Tailwind CSS** + a small hand-written 95/98 component layer | Don't pull in a heavy retro-UI kit and call it done; build the chrome yourself to show craft. |
+| Voice transform | **ElevenLabs API** (Speech-to-Speech / Voice Changer) | The core integration. Called server-side from the Next.js app (`lib/elevenlabs.ts`); the key never reaches the browser. |
+| Styling | **Tailwind CSS** + a small hand-written 95/98 component layer | Don't pull in a heavy retro-UI kit and call it done; build the chrome yourself to show craft. |
 | State | **Zustand** | Single store for audio state, active filter, animation params. |
 | Animation polish | **Framer Motion** (UI only, not the canvas) | Window open/close, dialog transitions. |
 
@@ -63,7 +65,7 @@ These extend the brief without changing its spirit. Treat as opt-in:
 
 ## 4. Architecture
 
-Three layers, deliberately separated so the MCP boundary is real and not cosmetic.
+Two layers with a clean boundary; secrets stay server-side.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -78,22 +80,18 @@ Three layers, deliberately separated so the MCP boundary is real and not cosmeti
 ┌─────────────────────────────────────────────┐
 │  Next.js server (API routes / Route Handlers)│
 │  - holds the ElevenLabs key                  │
-│  - audio upload + temp storage               │
-│  - acts as MCP CLIENT to the MCP server      │
+│  - enforces access (local / trial / code / BYOK)│
+│  - calls ElevenLabs (lib/elevenlabs.ts)      │
+│  - audio temp storage, served by handle      │
 └───────────────┬─────────────────────────────┘
-                │ MCP (stdio or HTTP/SSE transport)
+                │ REST
                 ▼
-┌─────────────────────────────────────────────┐
-│  MCP server (standalone Node process)        │
-│  - tools: list_voices, transform_voice, ...  │
-│  - wraps ElevenLabs SDK                       │
-│  - returns audio handles, not giant blobs    │
-└─────────────────────────────────────────────┘
+        ElevenLabs API (voices + speech-to-speech)
 ```
 
-**Why this shape:** the MCP server is a genuine, reusable integration that could be plugged into Claude Desktop or any MCP host — that's the point. The Next.js server is the MCP *client*. The browser never sees an API key and never calls ElevenLabs directly.
+**Why this shape:** the browser never sees an API key and never calls ElevenLabs directly — every call goes through the Next.js server, which also enforces the access model. The key lives in server env only.
 
-**Audio data, not blobs, over MCP:** MCP tools should not shuttle multi-MB base64 audio back and forth. The MCP server writes converted audio to a shared temp store (local disk in dev, blob storage in prod) and returns a **handle/URL + metadata**. The frontend fetches the audio from a Next.js route by handle.
+**Audio data, not blobs:** converted audio is written to a temp store (local disk in dev, blob storage in prod) and served from a Next.js route by **handle/URL + metadata** — never shuttled around as multi-MB base64.
 
 ---
 
@@ -143,24 +141,27 @@ Ship MYSTIFY + WAVEFIELD first; the other two are stretch.
 - Also use **list voices** to populate the filter picker.
 - Expose voice **settings** (stability, similarity, style) as advanced sliders; changing them re-runs the conversion.
 - Treat conversion as **request/response** for v1 (record → convert → play converted clip with live visualization). Real-time streaming STS is a stretch goal — do not block on it.
-- All ElevenLabs calls live **only** inside the MCP server. The key is read from the MCP server's env, never shipped to the browser.
+- All ElevenLabs calls live **only** on the Next.js server (`lib/elevenlabs.ts`). The key is read from server env, never shipped to the browser.
 
 > Note: ElevenLabs' exact endpoint names, model IDs, and limits change. **Verify against current ElevenLabs docs before implementing** rather than trusting any specifics memorized here.
 
 ---
 
-## 7. MCP server design
+## 7. Server integration & access model
 
-Standalone Node/TypeScript process using `@modelcontextprotocol/sdk`. Start with stdio transport for local dev; expose HTTP/SSE for the deployed app.
+ElevenLabs is wrapped in `lib/elevenlabs.ts` (server-only) and called from API routes:
 
-### Tools
+| Route | Purpose |
+|---|---|
+| `GET /api/voices` | List voices for the filter picker. |
+| `POST /api/transform` | Convert recorded audio → `{ resultHandle, durationMs, voiceId, remaining }`. |
+| `GET /api/audio/[handle]` | Serve converted audio by handle. |
+| `POST /api/access` | Validate a friend's access code (never echoes the real one). |
 
-| Tool | Input | Output | Purpose |
-|---|---|---|---|
-| `list_voices` | `{}` | array of `{id, name, labels}` | Populate filter picker. |
-| `get_voice_settings` | `{ voiceId }` | settings object | Show/seed sliders. |
-| `transform_voice` | `{ audioHandle, targetVoiceId, settings? }` | `{ resultHandle, durationMs, voiceId }` | The main op: convert recorded audio. |
-Keep tool schemas strict (zod). Tools return **handles**, never raw audio. Document each tool's schema in the server's README so it reads as a real, reusable MCP server.
+Routes return audio **handles**, never raw audio.
+
+**Access model** (so a public demo doesn't drain one account): local dev is unlimited; otherwise a signed-cookie **free trial** (with an optional per-IP Upstash backstop) applies, until a visitor enters the shared **access code** (`ACCESS_CODE` env, never committed) or brings their **own ElevenLabs key** (sent per-request, never stored). See `lib/trial.ts`, `lib/trialIp.ts`, `lib/access.ts`.
+
 ---
 
 ## 8. Directory structure
@@ -168,20 +169,20 @@ Keep tool schemas strict (zod). Tools return **handles**, never raw audio. Docum
 ```
 /app                      Next.js App Router
   /api
-    /audio/[handle]       serve audio by handle (GET)
-    /transform            client → server → MCP client call
+    /audio/[handle]       serve converted audio by handle (GET)
+    /transform            upload → ElevenLabs → result handle (POST)
+    /voices               list voices (GET)
+    /access               validate the access code (POST)
   page.tsx                the "desktop" entry (served at /)
 /components
   /retro                  hand-built 95/98 chrome (Window, Button, Dialog, TaskBar)
   /scenes                 r3f scenes (Mystify, Starfield, Pipes, Wavefield)
-  /controls               recorder, filter picker, sliders
+  /controls               recorder, filter picker, sliders, export
 /lib
   /audio                  analyser, feature extraction, params mapping
-  /mcp-client             wraps MCP client used by API routes
-  /store                  zustand store
-/mcp-server               standalone MCP server (own package.json)
-  /tools                  one file per tool
-  index.ts                server bootstrap
+  /store                  zustand store + audio handle store
+  elevenlabs.ts           server-side ElevenLabs client (voices + speech-to-speech)
+  trial.ts trialIp.ts access.ts   access model (trial / IP backstop / code)
 ```
 
 ---
@@ -194,9 +195,6 @@ pnpm install
 
 # dev (frontend + next server)
 pnpm dev
-
-# run MCP server standalone (stdio)
-pnpm --filter mcp-server dev
 
 # typecheck / lint / format
 pnpm typecheck
@@ -216,7 +214,7 @@ pnpm build
 - **TypeScript strict**, no `any` in committed code.
 - Audio feature extraction is **pure functions** — no React, no Three.js — so it can be unit-tested.
 - Scenes consume `AnimationParams` and own no audio logic.
-- Secrets live in env only on the server / MCP server. The browser never holds a key.
+- Secrets live in env only on the server. The browser never holds a key.
 - Retro UI is **hand-built** in `/components/retro`; do not lean on a prebuilt 98.css clone as the whole deliverable (you may reference one for spacing, but the craft must be yours).
 - Accessibility: the retro look should not break keyboard nav, focus rings, or reduced-motion. Respect `prefers-reduced-motion` by damping the canvas.
 - Performance: cap the canvas at the display refresh, throttle analysis to ~60fps, dispose Three.js resources on scene switch.
@@ -242,8 +240,8 @@ The bar to clear: a designer should look at it and believe it was deliberately a
 1. **Skeleton** — Next.js + TS + Tailwind; retro Window/Button/TaskBar shells.
 2. **Record + analyze** — mic capture, `AnalyserNode`, feature extraction → `AnimationParams`. Prove it with a debug readout.
 3. **First scene** — Wavefield reacting live to the params.
-4. **MCP server** — `list_voices`, `transform_voice` against ElevenLabs; return handles.
-5. **Wire the loop** — record → transform via MCP → fetch result → re-analyze → animation changes.
+4. **Server integration** — `/api/voices` + `/api/transform` calling ElevenLabs server-side; return handles.
+5. **Wire the loop** — record → transform → fetch result → re-analyze → animation changes.
 6. **Filter picker UI** — the Screen Saver dialog; named presets ↔ voices/scenes.
 7. **Polish** — Mystify scene, CRT, transitions, reduced-motion, export.
 8. **Stretch** — Starfield + Pipes; shareable export video.
@@ -256,7 +254,8 @@ A reviewer should find something impressive by milestone 5; everything after is 
 
 - ~~**Real-time vs offline conversion**~~ — **RESOLVED: v1 is offline** (record → send to ElevenLabs → get converted clip back → play with live visualization; a normal request/response, still network-dependent). Real-time streaming STS is explicitly out of scope for v1; revisit only as a stretch goal.
 - **Where converted audio is stored** — local disk (dev) vs a blob store (prod). Affects the handle scheme.
-- ~~**Agent in scope or not**~~ — **RESOLVED: out of scope.** The Anthropic-driven NL agent layer and the `suggest_filter` tool have been removed; filter selection is via named presets only. The standalone MCP server remains the integration centerpiece.
+- ~~**Agent in scope or not**~~ — **RESOLVED: out of scope.** The Anthropic-driven NL agent layer and the `suggest_filter` tool have been removed; filter selection is via named presets only.
+- ~~**MCP server vs direct calls**~~ — **RESOLVED: direct calls.** With no LLM in the loop, the MCP server was indirection without a payoff, so it was removed; ElevenLabs is called directly from the Next.js server (`lib/elevenlabs.ts`). MCP exists to expose tools to an LLM host — not the right fit here.
 - **How many scenes ship** — two is enough to be impressive; four is the ceiling.
 - **ElevenLabs cost/limits** — confirm free-tier quota is enough for a portfolio demo, or gate transforms behind a soft limit.
 

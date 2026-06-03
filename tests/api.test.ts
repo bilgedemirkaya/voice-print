@@ -4,12 +4,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-// Mock the MCP client so we don't spawn the real MCP server / call ElevenLabs.
-vi.mock("@/lib/mcp-client", () => ({
-  transformVoice: vi.fn(async (input: { audioHandle: string; targetVoiceId: string }) => ({
-    resultHandle: "converted-test.mp3",
-    durationMs: 1500,
-    voiceId: input.targetVoiceId,
+// Mock the ElevenLabs client so tests don't hit the network.
+vi.mock("@/lib/elevenlabs", () => ({
+  speechToSpeech: vi.fn(async () => ({
+    audio: Buffer.from("CONVERTED"),
+    contentType: "audio/mpeg",
+    durationMsApprox: 1500,
   })),
   listVoices: vi.fn(async () => [{ id: "v1", name: "Robo", labels: {} }]),
 }));
@@ -18,7 +18,7 @@ import { writeAudio } from "@/lib/store/audioFiles";
 import { GET as audioGet } from "@/app/api/audio/[handle]/route";
 import { POST as transformPost } from "@/app/api/transform/route";
 import { GET as voicesGet } from "@/app/api/voices/route";
-import { transformVoice } from "@/lib/mcp-client";
+import { speechToSpeech } from "@/lib/elevenlabs";
 import { ACCESS_CODE_HEADER, BYOK_HEADER, FREE_TRIAL_LIMIT, TRIAL_COOKIE } from "@/lib/trialConfig";
 import { signTrialCount } from "@/lib/trial";
 
@@ -69,23 +69,21 @@ describe("/api/audio/[handle]", () => {
 });
 
 describe("/api/transform", () => {
-  it("stores the upload, forwards the handle to transform_voice, returns the result", async () => {
+  it("converts the upload via ElevenLabs and returns a result handle", async () => {
     const res = await transformPost(
       new Request("http://localhost/api/transform", { method: "POST", body: transformForm() }),
     );
 
     expect(res.status).toBe(200);
     const json = (await res.json()) as { resultHandle: string; voiceId: string; remaining: number };
-    expect(json).toMatchObject({ resultHandle: "converted-test.mp3", voiceId: "voice_robot" });
+    expect(json.resultHandle).toMatch(/\.mp3$/);
+    expect(json.voiceId).toBe("voice_robot");
     // a fresh visitor (no cookie) consumes one free transform and is told how many remain
     expect(json.remaining).toBe(FREE_TRIAL_LIMIT - 1);
     expect(res.headers.get("set-cookie") ?? "").toContain(`${TRIAL_COOKIE}=`);
 
-    expect(vi.mocked(transformVoice)).toHaveBeenCalledWith(
-      expect.objectContaining({
-        targetVoiceId: "voice_robot",
-        audioHandle: expect.stringMatching(/\.webm$/),
-      }),
+    expect(vi.mocked(speechToSpeech)).toHaveBeenCalledWith(
+      expect.objectContaining({ voiceId: "voice_robot" }),
     );
   });
 
@@ -163,7 +161,7 @@ describe("/api/transform", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(vi.mocked(transformVoice)).toHaveBeenCalledWith(
+    expect(vi.mocked(speechToSpeech)).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: "xi-user-key" }),
     );
   });

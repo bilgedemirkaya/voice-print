@@ -1,7 +1,6 @@
-import { elevenLabsApiKey } from "./config.js";
-
-// Verified against ElevenLabs docs (June 2026): list voices, per-voice settings,
-// and speech-to-speech (Voice Changer). Auth header is `xi-api-key`.
+// Direct ElevenLabs client, server-side only. The host's key is read from ELEVENLABS_API_KEY and
+// never reaches the browser; a caller may pass their own key (BYOK) per request. Verified against
+// ElevenLabs docs: GET /v1/voices and POST /v1/speech-to-speech (Voice Changer). Auth: xi-api-key.
 const BASE_URL = "https://api.elevenlabs.io/v1";
 const DEFAULT_STS_MODEL = "eleven_english_sts_v2";
 const OUTPUT_FORMAT = "mp3_44100_128";
@@ -31,8 +30,16 @@ export type SpeechToSpeechResult = {
   durationMsApprox: number;
 };
 
+function hostKey(): string {
+  const key = process.env.ELEVENLABS_API_KEY?.trim();
+  if (!key) {
+    throw new Error("ELEVENLABS_API_KEY is not set. Add it to .env.local (see .env.example).");
+  }
+  return key;
+}
+
 function authHeaders(apiKey?: string): Record<string, string> {
-  return { "xi-api-key": apiKey?.trim() || elevenLabsApiKey() };
+  return { "xi-api-key": apiKey?.trim() || hostKey() };
 }
 
 async function fail(res: Response, action: string): Promise<never> {
@@ -49,14 +56,6 @@ export async function listVoices(): Promise<Voice[]> {
   return data.voices.map((v) => ({ id: v.voice_id, name: v.name, labels: v.labels ?? {} }));
 }
 
-export async function getVoiceSettings(voiceId: string): Promise<VoiceSettings> {
-  const res = await fetch(`${BASE_URL}/voices/${encodeURIComponent(voiceId)}/settings`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) return fail(res, "get voice settings");
-  return (await res.json()) as VoiceSettings;
-}
-
 /** Convert source audio to the target voice (preserving cadence/emotion). Returns mp3 bytes. */
 export async function speechToSpeech(params: {
   voiceId: string;
@@ -67,7 +66,7 @@ export async function speechToSpeech(params: {
 }): Promise<SpeechToSpeechResult> {
   const settings = params.settings ?? DEFAULT_VOICE_SETTINGS;
   const form = new FormData();
-  form.append("audio", new Blob([params.audio], { type: params.audioContentType }), "input");
+  form.append("audio", new Blob([new Uint8Array(params.audio)], { type: params.audioContentType }), "input");
   form.append("model_id", DEFAULT_STS_MODEL);
   form.append("voice_settings", JSON.stringify(settings));
   // Clean up noisy mic input — improves conversion intelligibility.

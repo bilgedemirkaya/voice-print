@@ -29,12 +29,12 @@ Stack up a few voices in the **A/B compare gallery** — each one remembers its 
 **You'll need:** Node ≥ 20 and pnpm 9 (`corepack enable pnpm`).
 
 ```bash
-# 1. install everything (the app + the MCP server)
+# 1. install
 pnpm install
 
-# 2. give the MCP server an ElevenLabs key
-cp mcp-server/.env.example mcp-server/.env
-#   then open mcp-server/.env and paste your ELEVENLABS_API_KEY
+# 2. add your ElevenLabs key (read server-side only, never sent to the browser)
+cp .env.example .env.local
+#   then open .env.local and paste your ELEVENLABS_API_KEY
 
 # 3. go
 pnpm dev
@@ -65,7 +65,7 @@ Bonus toggles: **CRT** scanlines and **Sounds** (synthesized 90s UI beeps).
 
 So the public demo doesn't drain one ElevenLabs account, transforms are gated — with several ways through:
 
-- **Running locally** (`pnpm dev`) → **unlimited**, no prompt; it just uses your key in `mcp-server/.env`.
+- **Running locally** (`pnpm dev`) → **unlimited**, no prompt; it just uses your key in `.env.local`.
 - **New visitors** get a couple of **free transforms** on the shared key. The count is tracked in a **signed, httpOnly cookie** (server-verified, so it can't be forged), with an **optional per-IP backstop** (Upstash Redis) that survives cookie-clearing.
 - **Friends with the access code** enter it once for **unlimited** transforms on the host's key. The code is read from the `ACCESS_CODE` env var only — never committed — so it stays a shared secret (think discount code).
 - **Anyone else** can paste their **own ElevenLabs key**, kept **in the browser only** (sessionStorage), sent per-request, and **never stored or logged** on the server.
@@ -76,34 +76,33 @@ All of this is configurable — see the env vars below.
 
 ## How it's wired
 
-Three deliberately separate layers — the MCP boundary is real, not cosmetic:
+A clean client/server split — the browser never holds a key:
 
 ```
 Browser (Next.js + react-three-fiber)
   · 95/98 desktop, mic capture, Web Audio analysis → live Three.js scenes
-        │  HTTP
+        │  HTTP (multipart upload)
 Next.js server (API routes)
-  · holds the shared key, enforces the trial, acts as the MCP *client*
-        │  MCP (stdio)
-MCP server (standalone Node process)
-  · tools: list_voices, get_voice_settings, transform_voice
-  · the only place ElevenLabs is ever called
+  · holds the key, enforces access (local / trial / code / BYOK)
+  · calls ElevenLabs server-side, stores converted audio by handle
+        │  REST
+ElevenLabs (voice list + speech-to-speech)
 ```
 
-Audio moves around as **handles**, never giant base64 blobs — the MCP server writes converted clips to a temp store and hands back a URL.
+Converted audio is served back by **handle** (`/api/audio/[handle]`), never shuttled around as giant base64 blobs. All audio analysis (FFT → `AnimationParams`) is pure, client-side, and unit-tested.
 
 ---
 
 ## Commands
 
 ```bash
-pnpm dev          # run the app (spawns the MCP server for you)
+pnpm dev          # run the app
 pnpm build        # production build
-pnpm mcp:dev      # run the MCP server standalone (stdio)
+pnpm start        # serve the production build
 
-pnpm typecheck    # tsc, app + mcp-server
-pnpm lint         # eslint, app + mcp-server
-pnpm test         # vitest, app + mcp-server  (98 tests)
+pnpm typecheck    # tsc
+pnpm lint         # eslint
+pnpm test         # vitest (92 tests)
 pnpm format       # prettier
 ```
 
@@ -111,16 +110,16 @@ pnpm format       # prettier
 
 ## Environment variables
 
-Secrets live **only** on the server (CLAUDE.md §10). The ElevenLabs key goes in `mcp-server/.env`; the rest are for the Next app (`.env` / `.env.local`) and are all optional.
+All of these go in `.env.local` (gitignored) and are read **server-side only** (CLAUDE.md §10); just the key is required.
 
-| Variable | Where | Purpose |
-|---|---|---|
-| `ELEVENLABS_API_KEY` | `mcp-server/.env` | The shared key powering voice transforms. **Required** to transform. |
-| `AUDIO_TMP_DIR` | `mcp-server/.env` | Where converted audio is written/served by handle. |
-| `ACCESS_CODE` | Next app | Shared code that unlocks unlimited transforms for friends. Unset = no code unlocks (BYOK + trial still work). |
-| `TRIAL_COOKIE_SECRET` | Next app | Signs the free-trial cookie. Set a random value in prod (dev default otherwise). |
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | Next app | Optional per-IP backstop. Blank = cookie-only. Free DB at [Upstash](https://console.upstash.com). |
-| `TRIAL_IP_DAILY_CAP` | Next app | Max free transforms per IP per day (default 10). |
+| Variable | Purpose |
+|---|---|
+| `ELEVENLABS_API_KEY` | The shared key powering voice transforms. **Required** to transform. |
+| `AUDIO_TMP_DIR` | Where converted audio is written/served by handle (optional; sensible default). |
+| `ACCESS_CODE` | Shared code that unlocks unlimited transforms for friends. Unset = no code unlocks (BYOK + trial still work). |
+| `TRIAL_COOKIE_SECRET` | Signs the free-trial cookie. Set a random value in prod (dev default otherwise). |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | Optional per-IP backstop. Blank = cookie-only. Free DB at [Upstash](https://console.upstash.com). |
+| `TRIAL_IP_DAILY_CAP` | Max free transforms per IP per day (default 10). |
 
 ---
 
@@ -133,10 +132,10 @@ components/
   scenes/       the four Three.js screensavers
   controls/     recorder, filter picker, sliders, export
 lib/
-  audio/        pure DSP — features → AnimationParams (no React, no Three)
-  store/        zustand store
-  trial.ts      signed-cookie free-trial gate;  trialIp.ts  per-IP Upstash backstop
-mcp-server/     the standalone MCP server (its own package)
+  audio/         pure DSP — features → AnimationParams (no React, no Three)
+  store/         zustand store
+  elevenlabs.ts  server-side ElevenLabs client (voices + speech-to-speech)
+  trial.ts       signed-cookie free-trial gate;  trialIp.ts  per-IP Upstash backstop
 ```
 
 The audio feature extraction is pure and unit-tested; scenes are dumb consumers of an `AnimationParams` object. Change the voice → change the params → change the picture.
@@ -145,4 +144,4 @@ The audio feature extraction is pure and unit-tested; scenes are dumb consumers 
 
 ## Tech stack
 
-Next.js (App Router) · TypeScript (strict) · Tailwind CSS v4 · Three.js + @react-three/fiber + drei · Zustand · Framer Motion · Vitest · `@modelcontextprotocol/sdk`.
+Next.js (App Router) · TypeScript (strict) · Tailwind CSS v4 · Three.js + @react-three/fiber + drei · Zustand · Framer Motion · Vitest.
