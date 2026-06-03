@@ -18,6 +18,9 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
 
 export type Voice = { id: string; name: string; labels: Record<string, string> };
 
+/** One converted take of the current recording. */
+export type Conversion = { voiceId: string; voiceName: string; url: string };
+
 export type VoicesStatus = "idle" | "loading" | "ready" | "error";
 
 type AudioState = {
@@ -30,12 +33,15 @@ type AudioState = {
   voiceSettings: VoiceSettings;
   // recorded source + converted result + transform status
   recordedBlob: Blob | null;
-  convertedUrl: string | null;
+  // converted takes of the current recording (one per voice), for the A/B/C compare gallery
+  conversions: Conversion[];
   transforming: boolean;
   transformError: string | null;
   // display
   crtEnabled: boolean;
   soundEnabled: boolean;
+  // label of the clip currently driving the visuals (e.g. "You" / a voice name), or null
+  playingLabel: string | null;
   // whether settings have changed since the last Apply (drives the Apply button)
   dirty: boolean;
   // voices, fetched once and cached
@@ -49,11 +55,12 @@ type AudioState = {
   setTargetVoiceId: (voiceId: string) => void;
   setVoiceSettings: (settings: VoiceSettings) => void;
   setRecordedBlob: (blob: Blob | null) => void;
-  setConvertedUrl: (url: string | null) => void;
+  addConversion: (conversion: Conversion) => void;
   setTransforming: (transforming: boolean) => void;
   setTransformError: (error: string | null) => void;
   setCrtEnabled: (enabled: boolean) => void;
   setSoundEnabled: (enabled: boolean) => void;
+  setPlayingLabel: (label: string | null) => void;
   setDirty: (dirty: boolean) => void;
   /** Fetch voices once and cache them; no-op if already loading/ready. */
   loadVoices: () => Promise<void>;
@@ -67,11 +74,12 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   targetVoiceId: "",
   voiceSettings: DEFAULT_VOICE_SETTINGS,
   recordedBlob: null,
-  convertedUrl: null,
+  conversions: [],
   transforming: false,
   transformError: null,
   crtEnabled: true,
   soundEnabled: true,
+  playingLabel: null,
   dirty: false,
   voices: [],
   voicesStatus: "idle",
@@ -82,12 +90,22 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   setActiveScene: (activeScene) => set({ activeScene }),
   setTargetVoiceId: (targetVoiceId) => set({ targetVoiceId }),
   setVoiceSettings: (voiceSettings) => set({ voiceSettings }),
-  setRecordedBlob: (recordedBlob) => set({ recordedBlob, dirty: true }),
-  setConvertedUrl: (convertedUrl) => set({ convertedUrl }),
+  // a new recording invalidates prior conversions (they were of the old audio)
+  setRecordedBlob: (recordedBlob) => set({ recordedBlob, dirty: true, conversions: [] }),
+  addConversion: (conversion) =>
+    set((s) => {
+      const index = s.conversions.findIndex((c) => c.voiceId === conversion.voiceId);
+      const conversions =
+        index >= 0
+          ? s.conversions.map((c, i) => (i === index ? conversion : c))
+          : [...s.conversions, conversion];
+      return { conversions };
+    }),
   setTransforming: (transforming) => set({ transforming }),
   setTransformError: (transformError) => set({ transformError }),
   setCrtEnabled: (crtEnabled) => set({ crtEnabled }),
   setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
+  setPlayingLabel: (playingLabel) => set({ playingLabel }),
   setDirty: (dirty) => set({ dirty }),
   loadVoices: async () => {
     const status = get().voicesStatus;

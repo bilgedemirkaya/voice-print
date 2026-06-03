@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/retro/Button";
 import { SCENES, SceneView } from "@/components/scenes/registry";
 import { useTransform } from "@/components/controls/useTransform";
@@ -9,10 +9,10 @@ import { sfx } from "@/lib/sfx";
 import { useAudioStore, type VoiceSettings } from "@/lib/store/audioStore";
 import { cn } from "@/lib/cn";
 
-const SLIDERS: Array<{ key: keyof VoiceSettings; label: string }> = [
-  { key: "stability", label: "Stability" },
-  { key: "similarity_boost", label: "Similarity" },
-  { key: "style", label: "Style" },
+const SLIDERS: Array<{ key: keyof VoiceSettings; label: string; hint: string }> = [
+  { key: "stability", label: "Stability", hint: "Steady vs. expressive — higher is calmer and more consistent." },
+  { key: "similarity_boost", label: "Similarity", hint: "How closely it matches the target voice — higher is closer." },
+  { key: "style", label: "Style", hint: "Exaggerates the voice's character — 0 is neutral." },
 ];
 
 /**
@@ -41,6 +41,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const transform = useTransform();
   const sceneName = SCENES.find((s) => s.id === activeScene)?.name ?? activeScene;
   const voiceName = voices.find((v) => v.id === targetVoiceId)?.name ?? targetVoiceId;
+  const [activeHint, setActiveHint] = useState(SLIDERS[0].hint);
 
   // No-op if already cached; otherwise fetches once.
   useEffect(() => {
@@ -117,8 +118,13 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
 
       <div className="flex flex-col gap-1.5">
         <p className="font-bold">Settings</p>
-        {SLIDERS.map(({ key, label }) => (
-          <label key={key} className="flex items-center gap-2">
+        {SLIDERS.map(({ key, label, hint }) => (
+          <label
+            key={key}
+            title={hint}
+            onMouseEnter={() => setActiveHint(hint)}
+            className="flex items-center gap-2"
+          >
             <span className="w-16">{label}</span>
             <input
               type="range"
@@ -126,15 +132,20 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
               max={1}
               step={0.05}
               value={voiceSettings[key]}
+              onFocus={() => setActiveHint(hint)}
               onChange={(event) => {
                 setVoiceSettings({ ...voiceSettings, [key]: Number(event.target.value) });
                 setDirty(true);
+                setActiveHint(hint);
               }}
               className="flex-1"
             />
             <span className="w-8 text-right tabular-nums">{voiceSettings[key].toFixed(2)}</span>
           </label>
         ))}
+        <p className="min-h-[2.4em] text-[10px] italic leading-tight text-w95-darkgray">
+          {activeHint}
+        </p>
       </div>
 
       <div className="flex items-center gap-4">

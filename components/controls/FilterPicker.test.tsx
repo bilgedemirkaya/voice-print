@@ -30,7 +30,7 @@ function resetStore() {
     targetVoiceId: "",
     voiceSettings: { ...DEFAULT_VOICE_SETTINGS },
     recordedBlob: null,
-    convertedUrl: null,
+    conversions: [],
     transforming: false,
     transformError: null,
     crtEnabled: true,
@@ -119,7 +119,11 @@ describe("FilterPicker", () => {
 
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
-    await waitFor(() => expect(useAudioStore.getState().convertedUrl).toBe("/api/audio/out.mp3"));
+    await waitFor(() =>
+      expect(useAudioStore.getState().conversions).toEqual([
+        { voiceId: "v1", voiceName: "Robo", url: "/api/audio/out.mp3" },
+      ]),
+    );
     const body = transformInit?.body as FormData;
     expect(body.get("targetVoiceId")).toBe("v1");
     expect(JSON.parse(String(body.get("settings")))).toMatchObject({ stability: 0.7 });

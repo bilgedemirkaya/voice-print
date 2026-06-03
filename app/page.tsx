@@ -33,6 +33,7 @@ export default function DesktopPage() {
   const [startOpen, setStartOpen] = useState(false);
   const [maximized, setMaximized] = useState(false);
   const activeScene = useAudioStore((s) => s.activeScene);
+  const playingLabel = useAudioStore((s) => s.playingLabel);
   const crtEnabled = useAudioStore((s) => s.crtEnabled);
   const reducedMotion = useReducedMotion();
   const loadVoices = useAudioStore((s) => s.loadVoices);
@@ -90,9 +91,18 @@ export default function DesktopPage() {
               <div className="flex min-h-0 flex-1 flex-col gap-3">
                 <div className="relative min-h-0 flex-1 overflow-hidden bevel-inset bg-[#140a28]">
                   <SceneView scene={activeScene} />
+                  {playingLabel && (
+                    <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-1.5 bg-black/55 px-2 py-1 text-[11px] font-bold text-white">
+                      <span
+                        aria-hidden
+                        className="h-1.5 w-1.5 rounded-full bg-[#5fd0ff] motion-safe:animate-pulse"
+                      />
+                      {playingLabel}
+                    </div>
+                  )}
                 </div>
                 <div className="flex shrink-0 flex-wrap items-end justify-between gap-2">
-                  <Recorder onRecorded={openSettings} />
+                  <Recorder onRecorded={openSettings} onAddVoice={openSettings} />
                   <Button onClick={openSettings} disabled={pendingOpen}>
                     {pendingOpen ? "Loading voices…" : "Display Properties…"}
                   </Button>

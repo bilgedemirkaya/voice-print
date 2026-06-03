@@ -44,7 +44,13 @@ export function useTransform() {
       const data = (await res.json()) as { resultHandle?: string; error?: string };
       if (!res.ok || !data.resultHandle) throw new Error(data.error ?? "Transform failed");
 
-      state.setConvertedUrl(`/api/audio/${data.resultHandle}`);
+      const voiceName =
+        state.voices.find((v) => v.id === state.targetVoiceId)?.name ?? state.targetVoiceId;
+      state.addConversion({
+        voiceId: state.targetVoiceId,
+        voiceName,
+        url: `/api/audio/${data.resultHandle}`,
+      });
     } catch (err) {
       state.setTransformError(friendlyError(err instanceof Error ? err.message : "Transform failed"));
       sfx.error();

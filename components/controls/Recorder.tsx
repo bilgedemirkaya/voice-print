@@ -6,6 +6,7 @@ import { VuMeter } from "@/components/controls/VuMeter";
 import { sfx } from "@/lib/sfx";
 import { createAudioAnalyser, type AudioAnalyser } from "@/lib/audio/analyser";
 import { useAudioStore } from "@/lib/store/audioStore";
+import { cn } from "@/lib/cn";
 
 type Status = "idle" | "requesting" | "recording" | "recorded";
 
@@ -13,7 +14,7 @@ const STATUS_LABEL: Record<Status, string> = {
   idle: "Ready",
   requesting: "Requesting mic…",
   recording: "Recording…",
-  recorded: "Recorded — open Display Properties to apply a voice",
+  recorded: "Recorded",
 };
 
 function formatTime(seconds: number): string {
@@ -23,33 +24,55 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/** Short tab label from a long voice name, e.g. "Roger - Laid-Back, …" → "Roger". */
+function shortVoiceName(name: string): string {
+  return name.split(/\s*[-(]/)[0].trim() || name;
+}
+
 /**
- * Records the mic (live analysis), stores the clip for the picker, and plays the converted clip
- * back through the analyser. The converted clip uses a hand-built retro player (no native chrome).
+ * Records the mic and offers an A/B/C compare gallery: flip between "You" (original) and one or
+ * more converted voices — each drives the analyser, so the scene re-reacts to each (M5/M6).
  */
-export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
+export function Recorder({
+  onRecorded,
+  onAddVoice,
+}: {
+  onRecorded?: () => void;
+  onAddVoice?: () => void;
+} = {}) {
   const [status, setStatus] = useState<Status>("idle");
   const [micError, setMicError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [source, setSource] = useState<string>("original"); // "original" or a voiceId
+  const [originalUrl, setOriginalUrl] = useState<string | null>(null);
 
   const contextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const micAnalyserRef = useRef<AudioAnalyser | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-
-  const convertedElRef = useRef<HTMLAudioElement | null>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
   const elementSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const playbackAnalyserRef = useRef<AudioAnalyser | null>(null);
+  const scrubbingRef = useRef(false);
+  const primingRef = useRef(false);
+  const pendingPlayRef = useRef(false);
+  const lastConversionRef = useRef<string | null>(null);
 
   const setParams = useAudioStore((s) => s.setParams);
   const setRecording = useAudioStore((s) => s.setRecording);
   const setRecordedBlob = useAudioStore((s) => s.setRecordedBlob);
-  const convertedUrl = useAudioStore((s) => s.convertedUrl);
+  const recordedBlob = useAudioStore((s) => s.recordedBlob);
+  const conversions = useAudioStore((s) => s.conversions);
   const transforming = useAudioStore((s) => s.transforming);
   const transformError = useAudioStore((s) => s.transformError);
+  const setPlayingLabel = useAudioStore((s) => s.setPlayingLabel);
+
+  const activeConversion = conversions.find((c) => c.voiceId === source) ?? null;
+  const currentUrl = source === "original" ? originalUrl : (activeConversion?.url ?? originalUrl);
+  const currentLabel = source === "original" ? "You" : (activeConversion?.voiceName ?? "Voice");
 
   const ensureContext = useCallback((): AudioContext => {
     if (!contextRef.current || contextRef.current.state === "closed") {
@@ -57,6 +80,16 @@ export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
     }
     return contextRef.current;
   }, []);
+
+  useEffect(() => {
+    if (!recordedBlob) {
+      setOriginalUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(recordedBlob);
+    setOriginalUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [recordedBlob]);
 
   useEffect(() => {
     return () => {
@@ -69,11 +102,21 @@ export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
     };
   }, []);
 
+  // When a fresh conversion arrives, select it and queue playback.
   useEffect(() => {
-    if (convertedUrl) {
-      requestAnimationFrame(() => void convertedElRef.current?.play().catch(() => undefined));
+    const latest = conversions[conversions.length - 1];
+    if (latest && latest.url !== lastConversionRef.current) {
+      lastConversionRef.current = latest.url;
+      pendingPlayRef.current = true;
+      setSource(latest.voiceId);
     }
-  }, [convertedUrl]);
+  }, [conversions]);
+
+  const maybePlay = useCallback(() => {
+    if (!pendingPlayRef.current) return;
+    pendingPlayRef.current = false;
+    void audioElRef.current?.play().catch(() => undefined);
+  }, []);
 
   const start = useCallback(async () => {
     setMicError(null);
@@ -84,8 +127,8 @@ export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
       const context = ensureContext();
       if (context.state === "suspended") await context.resume();
 
-      const source = context.createMediaStreamSource(stream);
-      micAnalyserRef.current = createAudioAnalyser(context, source, setParams);
+      const micSource = context.createMediaStreamSource(stream);
+      micAnalyserRef.current = createAudioAnalyser(context, micSource, setParams);
       micAnalyserRef.current.start();
 
       const recorder = new MediaRecorder(stream);
@@ -97,6 +140,8 @@ export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
         setRecordedBlob(blob);
+        setSource("original");
+        lastConversionRef.current = null;
         micAnalyserRef.current?.stop();
         streamRef.current?.getTracks().forEach((track) => track.stop());
         setStatus("recorded");
@@ -120,7 +165,7 @@ export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
 
   const handlePlay = useCallback(() => {
     const context = ensureContext();
-    const element = convertedElRef.current;
+    const element = audioElRef.current;
     if (!element) return;
     if (!elementSourceRef.current) {
       elementSourceRef.current = context.createMediaElementSource(element);
@@ -132,27 +177,91 @@ export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
     if (context.state === "suspended") void context.resume();
     playbackAnalyserRef.current.start();
     setIsPlaying(true);
-  }, [ensureContext, setParams]);
+    setPlayingLabel(currentLabel);
+  }, [ensureContext, setParams, setPlayingLabel, currentLabel]);
 
   const handleStop = useCallback(() => {
     playbackAnalyserRef.current?.stop();
     setIsPlaying(false);
-  }, []);
+    setPlayingLabel(null);
+  }, [setPlayingLabel]);
+
+  const selectSource = useCallback(
+    (next: string) => {
+      if (next === source) {
+        void audioElRef.current?.play().catch(() => undefined);
+        return;
+      }
+      pendingPlayRef.current = true;
+      setSource(next);
+    },
+    [source],
+  );
 
   const togglePlay = useCallback(() => {
-    const element = convertedElRef.current;
+    const element = audioElRef.current;
     if (!element) return;
     if (element.paused) void element.play().catch(() => undefined);
     else element.pause();
   }, []);
 
-  const seek = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    const element = convertedElRef.current;
+  const seekToClientX = useCallback((clientX: number, rect: DOMRect) => {
+    const element = audioElRef.current;
     if (!element || !Number.isFinite(element.duration)) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const fraction = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
     element.currentTime = fraction * element.duration;
+    setCurrentTime(element.currentTime);
   }, []);
+
+  const onSeekDown = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      scrubbingRef.current = true;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      seekToClientX(event.clientX, event.currentTarget.getBoundingClientRect());
+    },
+    [seekToClientX],
+  );
+  const onSeekMove = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (scrubbingRef.current) {
+        seekToClientX(event.clientX, event.currentTarget.getBoundingClientRect());
+      }
+    },
+    [seekToClientX],
+  );
+  const onSeekUp = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    scrubbingRef.current = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }, []);
+
+  // MediaRecorder webm reports duration: Infinity until forced — discover it, then reset.
+  const handleLoadedMetadata = useCallback(
+    (event: React.SyntheticEvent<HTMLAudioElement>) => {
+      const element = event.currentTarget;
+      if (Number.isFinite(element.duration)) {
+        setDuration(element.duration);
+        maybePlay();
+      } else {
+        primingRef.current = true;
+        element.currentTime = 1e7;
+      }
+    },
+    [maybePlay],
+  );
+  const handleDurationChange = useCallback(
+    (event: React.SyntheticEvent<HTMLAudioElement>) => {
+      const element = event.currentTarget;
+      if (!Number.isFinite(element.duration)) return;
+      setDuration(element.duration);
+      if (primingRef.current) {
+        primingRef.current = false;
+        element.currentTime = 0;
+        setCurrentTime(0);
+        maybePlay();
+      }
+    },
+    [maybePlay],
+  );
 
   const progress = duration > 0 ? currentTime / duration : 0;
 
@@ -176,41 +285,86 @@ export function Recorder({ onRecorded }: { onRecorded?: () => void } = {}) {
       </div>
 
       {(status === "recording" || isPlaying) && <VuMeter />}
-
       {micError && <p className="text-[#b00020]">{micError}</p>}
       {transforming && <p className="text-w95-darkgray">Transforming…</p>}
       {transformError && <p className="text-[#b00020]">{transformError}</p>}
 
-      {convertedUrl && (
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={togglePlay}
-            aria-label={isPlaying ? "Pause" : "Play"}
-            className="bevel-raised active:bevel-pressed flex h-6 w-8 items-center justify-center bg-w95-silver text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-dotted focus-visible:outline-black focus-visible:-outline-offset-2"
-          >
-            {isPlaying ? "❚❚" : "▶"}
-          </button>
-          <button
-            type="button"
-            onClick={seek}
-            aria-label="Seek"
-            className="bevel-inset relative h-3 flex-1 cursor-pointer bg-white"
-          >
-            <div
-              className="absolute inset-y-0 left-0 bg-w95-navy"
-              style={{ width: `${progress * 100}%` }}
-            />
-          </button>
-          <span className="w-20 shrink-0 text-right tabular-nums">
-            {formatTime(currentTime)} / {formatTime(duration)}
-          </span>
+      {originalUrl && (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-w95-darkgray">Compare:</span>
+            <button
+              type="button"
+              onClick={() => selectSource("original")}
+              className={cn(
+                "bg-w95-silver px-2 py-0.5",
+                source === "original" ? "bevel-pressed" : "bevel-raised active:bevel-pressed",
+              )}
+            >
+              You
+            </button>
+            {conversions.map((conversion) => (
+              <button
+                key={conversion.voiceId}
+                type="button"
+                title={conversion.voiceName}
+                onClick={() => selectSource(conversion.voiceId)}
+                className={cn(
+                  "bg-w95-silver px-2 py-0.5",
+                  source === conversion.voiceId
+                    ? "bevel-pressed"
+                    : "bevel-raised active:bevel-pressed",
+                )}
+              >
+                {shortVoiceName(conversion.voiceName)}
+              </button>
+            ))}
+            {onAddVoice && (
+              <button
+                type="button"
+                onClick={onAddVoice}
+                aria-label="Add a voice"
+                title="Add another voice"
+                className="bevel-raised active:bevel-pressed bg-w95-silver px-2 py-0.5 font-bold"
+              >
+                +
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={togglePlay}
+              aria-label={isPlaying ? "Pause" : "Play"}
+              className="bevel-raised active:bevel-pressed flex h-6 w-8 items-center justify-center bg-w95-silver text-black focus-visible:outline focus-visible:outline-1 focus-visible:outline-dotted focus-visible:outline-black focus-visible:-outline-offset-2"
+            >
+              {isPlaying ? "❚❚" : "▶"}
+            </button>
+            <button
+              type="button"
+              aria-label="Seek"
+              onPointerDown={onSeekDown}
+              onPointerMove={onSeekMove}
+              onPointerUp={onSeekUp}
+              className="bevel-inset relative h-3 flex-1 cursor-pointer touch-none bg-white"
+            >
+              <div
+                className="absolute inset-y-0 left-0 bg-w95-navy"
+                style={{ width: `${progress * 100}%` }}
+              />
+            </button>
+            <span className="w-20 shrink-0 text-right tabular-nums">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+          </div>
+
           <audio
-            ref={convertedElRef}
-            src={convertedUrl}
+            ref={audioElRef}
+            src={currentUrl ?? undefined}
             className="hidden"
-            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-            onDurationChange={(e) => setDuration(e.currentTarget.duration)}
+            onLoadedMetadata={handleLoadedMetadata}
+            onDurationChange={handleDurationChange}
             onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
             onPlay={handlePlay}
             onPause={handleStop}
