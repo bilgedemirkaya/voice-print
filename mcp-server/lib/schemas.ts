@@ -26,4 +26,9 @@ export const transformVoiceInput = {
   audioHandle: z.string().min(1).describe("Handle of the source audio in the temp store"),
   targetVoiceId: z.string().min(1).describe("ElevenLabs voice id to convert to"),
   settings: voiceSettingsSchema.optional().describe("Optional voice settings override"),
+  apiKey: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Optional caller-supplied ElevenLabs key (BYOK); falls back to the server's env key"),
 };

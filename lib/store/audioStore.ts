@@ -54,6 +54,10 @@ type AudioState = {
   voicePalette: [string, string, string] | null;
   // whether settings have changed since the last Apply (drives the Apply button)
   dirty: boolean;
+  // BYOK: a visitor's own ElevenLabs key (in-memory + sessionStorage), or null to use the trial
+  userApiKey: string | null;
+  // free transforms left on the shared key per the server, or null when unknown / using own key
+  trialRemaining: number | null;
   // voices, fetched once and cached
   voices: Voice[];
   voicesStatus: VoicesStatus;
@@ -74,6 +78,10 @@ type AudioState = {
   setPlayingLabel: (label: string | null) => void;
   setVoicePalette: (palette: [string, string, string] | null) => void;
   setDirty: (dirty: boolean) => void;
+  setUserApiKey: (key: string | null) => void;
+  setTrialRemaining: (remaining: number | null) => void;
+  /** Restore a previously-entered BYOK key from sessionStorage (client only). */
+  hydrateUserApiKey: () => void;
   /** Fetch voices once and cache them; no-op if already loading/ready. */
   loadVoices: () => Promise<void>;
 };
@@ -95,6 +103,8 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   playingLabel: null,
   voicePalette: null,
   dirty: false,
+  userApiKey: null,
+  trialRemaining: null,
   voices: [],
   voicesStatus: "idle",
   voicesError: null,
@@ -124,6 +134,19 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
   setPlayingLabel: (playingLabel) => set({ playingLabel }),
   setVoicePalette: (voicePalette) => set({ voicePalette }),
   setDirty: (dirty) => set({ dirty }),
+  setUserApiKey: (userApiKey) => {
+    if (typeof window !== "undefined") {
+      if (userApiKey) window.sessionStorage.setItem("vp_byok_key", userApiKey);
+      else window.sessionStorage.removeItem("vp_byok_key");
+    }
+    set({ userApiKey });
+  },
+  setTrialRemaining: (trialRemaining) => set({ trialRemaining }),
+  hydrateUserApiKey: () => {
+    if (typeof window === "undefined") return;
+    const stored = window.sessionStorage.getItem("vp_byok_key");
+    if (stored) set({ userApiKey: stored });
+  },
   loadVoices: async () => {
     const status = get().voicesStatus;
     if (status === "loading" || status === "ready") return;

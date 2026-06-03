@@ -66,8 +66,10 @@ export async function transformVoice(input: {
   audioHandle: string;
   targetVoiceId: string;
   settings?: VoiceSettings;
+  apiKey?: string;
 }): Promise<TransformResult> {
   const client = await getClient();
+  // `apiKey` (BYOK) rides along to the tool; it never lands in env or on disk.
   const res = await client.callTool({ name: "transform_voice", arguments: input });
   if (res.isError) throw new Error(textOf(res.content) || "transform_voice failed");
   return res.structuredContent as TransformResult;

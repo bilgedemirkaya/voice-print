@@ -25,6 +25,7 @@ let transformInit: RequestInit | undefined;
 let transformResponse: () => Response;
 
 function resetStore() {
+  if (typeof window !== "undefined") window.sessionStorage.clear();
   useAudioStore.setState({
     activeScene: "wavefield",
     targetVoiceId: "",
@@ -37,6 +38,8 @@ function resetStore() {
     soundEnabled: true,
     voicePalette: null,
     dirty: false,
+    userApiKey: null,
+    trialRemaining: null,
     voices: [],
     voicesStatus: "idle",
     voicesError: null,
@@ -191,5 +194,19 @@ describe("FilterPicker", () => {
     expect(checkbox).toBeChecked();
     await user.click(checkbox);
     expect(useAudioStore.getState().soundEnabled).toBe(false);
+  });
+
+  it("shows the free-trial counter and saves a bring-your-own-key", async () => {
+    const user = userEvent.setup();
+    render(<FilterPicker />);
+    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+
+    expect(screen.getByText("Free voices left: 2 / 2")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("ElevenLabs API key"), "xi-my-key");
+    await user.click(screen.getByRole("button", { name: "Save key" }));
+
+    expect(useAudioStore.getState().userApiKey).toBe("xi-my-key");
+    expect(screen.getByText(/Using your ElevenLabs key/i)).toBeInTheDocument();
   });
 });

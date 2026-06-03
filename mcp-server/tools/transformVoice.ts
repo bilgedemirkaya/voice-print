@@ -19,13 +19,14 @@ export function registerTransformVoice(server: McpServer): void {
         voiceId: z.string(),
       },
     },
-    async ({ audioHandle, targetVoiceId, settings }) => {
+    async ({ audioHandle, targetVoiceId, settings, apiKey }) => {
       const source = await readAudio(audioHandle);
       const result = await speechToSpeech({
         voiceId: targetVoiceId,
         audio: source,
         audioContentType: contentTypeForHandle(audioHandle),
         settings,
+        apiKey,
       });
       const resultHandle = await writeAudio(result.audio, "mp3");
       const output = {

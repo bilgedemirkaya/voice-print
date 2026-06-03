@@ -31,8 +31,8 @@ export type SpeechToSpeechResult = {
   durationMsApprox: number;
 };
 
-function authHeaders(): Record<string, string> {
-  return { "xi-api-key": elevenLabsApiKey() };
+function authHeaders(apiKey?: string): Record<string, string> {
+  return { "xi-api-key": apiKey?.trim() || elevenLabsApiKey() };
 }
 
 async function fail(res: Response, action: string): Promise<never> {
@@ -63,6 +63,7 @@ export async function speechToSpeech(params: {
   audio: Buffer;
   audioContentType: string;
   settings?: VoiceSettings;
+  apiKey?: string;
 }): Promise<SpeechToSpeechResult> {
   const settings = params.settings ?? DEFAULT_VOICE_SETTINGS;
   const form = new FormData();
@@ -73,7 +74,7 @@ export async function speechToSpeech(params: {
   form.append("remove_background_noise", "true");
 
   const url = `${BASE_URL}/speech-to-speech/${encodeURIComponent(params.voiceId)}?output_format=${OUTPUT_FORMAT}`;
-  const res = await fetch(url, { method: "POST", headers: authHeaders(), body: form });
+  const res = await fetch(url, { method: "POST", headers: authHeaders(params.apiKey), body: form });
   if (!res.ok) return fail(res, "speech-to-speech");
 
   const audio = Buffer.from(await res.arrayBuffer());

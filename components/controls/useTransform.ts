@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useAudioStore } from "@/lib/store/audioStore";
 import { sfx } from "@/lib/sfx";
 import { voicePaletteForLabels } from "@/lib/voicePalette";
+import { BYOK_HEADER } from "@/lib/trialConfig";
 
 /** Turn ElevenLabs' raw error JSON into a short, friendly message. */
 function friendlyError(message: string): string {
@@ -41,8 +42,15 @@ export function useTransform() {
       form.append("targetVoiceId", state.targetVoiceId);
       form.append("settings", JSON.stringify(state.voiceSettings));
 
-      const res = await fetch("/api/transform", { method: "POST", body: form });
-      const data = (await res.json()) as { resultHandle?: string; error?: string };
+      const headers = state.userApiKey ? { [BYOK_HEADER]: state.userApiKey } : undefined;
+      const res = await fetch("/api/transform", { method: "POST", body: form, headers });
+      const data = (await res.json()) as {
+        resultHandle?: string;
+        error?: string;
+        remaining?: number | null;
+      };
+      // Reflect the server's authoritative free-transform count (null = own key / unknown).
+      if (data.remaining !== undefined) state.setTrialRemaining(data.remaining);
       if (!res.ok || !data.resultHandle) throw new Error(data.error ?? "Transform failed");
 
       const voice = state.voices.find((v) => v.id === state.targetVoiceId);

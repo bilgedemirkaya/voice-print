@@ -19,6 +19,15 @@ import { GET as audioGet } from "@/app/api/audio/[handle]/route";
 import { POST as transformPost } from "@/app/api/transform/route";
 import { GET as voicesGet } from "@/app/api/voices/route";
 import { transformVoice } from "@/lib/mcp-client";
+import { BYOK_HEADER, FREE_TRIAL_LIMIT, TRIAL_COOKIE } from "@/lib/trialConfig";
+import { signTrialCount } from "@/lib/trial";
+
+function transformForm(): FormData {
+  const form = new FormData();
+  form.append("audio", new Blob([Buffer.from("REC")], { type: "audio/webm" }), "rec.webm");
+  form.append("targetVoiceId", "voice_robot");
+  return form;
+}
 
 let dir: string;
 
@@ -61,17 +70,16 @@ describe("/api/audio/[handle]", () => {
 
 describe("/api/transform", () => {
   it("stores the upload, forwards the handle to transform_voice, returns the result", async () => {
-    const form = new FormData();
-    form.append("audio", new Blob([Buffer.from("REC")], { type: "audio/webm" }), "rec.webm");
-    form.append("targetVoiceId", "voice_robot");
-
     const res = await transformPost(
-      new Request("http://localhost/api/transform", { method: "POST", body: form }),
+      new Request("http://localhost/api/transform", { method: "POST", body: transformForm() }),
     );
 
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { resultHandle: string; voiceId: string };
+    const json = (await res.json()) as { resultHandle: string; voiceId: string; remaining: number };
     expect(json).toMatchObject({ resultHandle: "converted-test.mp3", voiceId: "voice_robot" });
+    // a fresh visitor (no cookie) consumes one free transform and is told how many remain
+    expect(json.remaining).toBe(FREE_TRIAL_LIMIT - 1);
+    expect(res.headers.get("set-cookie") ?? "").toContain(`${TRIAL_COOKIE}=`);
 
     expect(vi.mocked(transformVoice)).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -88,6 +96,35 @@ describe("/api/transform", () => {
       new Request("http://localhost/api/transform", { method: "POST", body: form }),
     );
     expect(res.status).toBe(400);
+  });
+
+  it("402s once the free trial is used up (no own key)", async () => {
+    const usedUp = signTrialCount(FREE_TRIAL_LIMIT);
+    const res = await transformPost(
+      new Request("http://localhost/api/transform", {
+        method: "POST",
+        body: transformForm(),
+        headers: { cookie: `${TRIAL_COOKIE}=${usedUp}` },
+      }),
+    );
+    expect(res.status).toBe(402);
+    const json = (await res.json()) as { code: string; remaining: number };
+    expect(json).toMatchObject({ code: "trial_exhausted", remaining: 0 });
+  });
+
+  it("a bring-your-own-key request bypasses the trial and forwards the key", async () => {
+    const usedUp = signTrialCount(FREE_TRIAL_LIMIT);
+    const res = await transformPost(
+      new Request("http://localhost/api/transform", {
+        method: "POST",
+        body: transformForm(),
+        headers: { cookie: `${TRIAL_COOKIE}=${usedUp}`, [BYOK_HEADER]: "xi-user-key" },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(vi.mocked(transformVoice)).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "xi-user-key" }),
+    );
   });
 });
 

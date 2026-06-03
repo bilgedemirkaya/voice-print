@@ -8,6 +8,7 @@ import { useTransform } from "@/components/controls/useTransform";
 import { exportVoiceCard } from "@/components/controls/exportCard";
 import { sfx } from "@/lib/sfx";
 import { useAudioStore, type VoiceSettings } from "@/lib/store/audioStore";
+import { FREE_TRIAL_LIMIT } from "@/lib/trialConfig";
 import { cn } from "@/lib/cn";
 
 const SLIDERS: Array<{ key: keyof VoiceSettings; label: string; hint: string }> = [
@@ -51,11 +52,17 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const voices = useAudioStore((s) => s.voices);
   const voicesError = useAudioStore((s) => s.voicesError);
   const loadVoices = useAudioStore((s) => s.loadVoices);
+  const userApiKey = useAudioStore((s) => s.userApiKey);
+  const setUserApiKey = useAudioStore((s) => s.setUserApiKey);
+  const trialRemaining = useAudioStore((s) => s.trialRemaining);
 
   const transform = useTransform();
   const sceneName = SCENES.find((s) => s.id === activeScene)?.name ?? activeScene;
   const voiceName = voices.find((v) => v.id === targetVoiceId)?.name ?? targetVoiceId;
   const [activeHint, setActiveHint] = useState(SLIDERS[0].hint);
+  const [keyDraft, setKeyDraft] = useState("");
+  const freeLeft = trialRemaining ?? FREE_TRIAL_LIMIT;
+  const trialBlocked = !userApiKey && freeLeft <= 0;
   const [filters, setFilters] = useState<Record<string, string>>({
     gender: "",
     age: "",
@@ -243,6 +250,65 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
         </label>
       </div>
 
+      {/* Free-trial counter + bring-your-own-key (CLAUDE.md §6 — key never persisted server-side). */}
+      <div className="bevel-inset flex flex-col gap-1.5 bg-white p-2">
+        {userApiKey ? (
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-bold">🔑 Using your ElevenLabs key.</span>
+            <button
+              type="button"
+              onClick={() => {
+                setUserApiKey(null);
+                setDirty(true);
+              }}
+              className="bevel-raised active:bevel-pressed bg-w95-silver px-2 py-0.5"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <>
+            <span className={cn("font-bold", trialBlocked && "text-[#b00020]")}>
+              {trialBlocked ? "Free trial used up" : `Free voices left: ${freeLeft} / ${FREE_TRIAL_LIMIT}`}
+            </span>
+            <p className="text-[10px] italic leading-tight text-w95-darkgray">
+              Add your own ElevenLabs key for unlimited transforms —{" "}
+              <a
+                href="https://elevenlabs.io/app/settings/api-keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-w95-navy underline"
+              >
+                get a free key
+              </a>
+              . Stored only in your browser, never on our server.
+            </p>
+            <div className="flex gap-1">
+              <input
+                type="password"
+                value={keyDraft}
+                onChange={(event) => setKeyDraft(event.target.value)}
+                placeholder="Paste your xi-… key"
+                aria-label="ElevenLabs API key"
+                className="bevel-inset min-w-0 flex-1 bg-white px-1 py-0.5"
+              />
+              <Button
+                onClick={() => {
+                  const key = keyDraft.trim();
+                  if (!key) return;
+                  setUserApiKey(key);
+                  setKeyDraft("");
+                  setDirty(true);
+                }}
+                disabled={!keyDraft.trim()}
+              >
+                Save key
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+
       {voicesError && <p className="text-[#b00020]">{voicesError}</p>}
       {transformError && <p className="text-[#b00020]">{transformError}</p>}
 
@@ -261,7 +327,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
             setDirty(false);
             onApplied?.();
           }}
-          disabled={transforming || !dirty || !targetVoiceId}
+          disabled={transforming || !dirty || !targetVoiceId || trialBlocked}
         >
           {transforming ? "Applying…" : "Apply"}
         </Button>
