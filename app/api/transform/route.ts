@@ -15,7 +15,9 @@ const TRIAL_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const userKey = request.headers.get(BYOK_HEADER)?.trim() || undefined;
-    const codeUnlock = isLocalDev() || isValidAccessCode(request.headers.get(ACCESS_CODE_HEADER));
+    // Local dev always uses the host key — ignore any stray BYOK header left in the browser.
+    const local = isLocalDev();
+    const codeUnlock = local || isValidAccessCode(request.headers.get(ACCESS_CODE_HEADER));
     const bypassTrial = codeUnlock || Boolean(userKey);
 
     const form = await request.formData();
@@ -71,7 +73,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       audio: buffer,
       audioContentType: audio.type || "audio/webm",
       settings,
-      apiKey: userKey,
+      apiKey: local ? undefined : userKey,
     });
     const resultHandle = await writeAudio(converted.audio, "mp3");
     const result = { resultHandle, durationMs: converted.durationMsApprox, voiceId: targetVoiceId };

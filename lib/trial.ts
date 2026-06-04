@@ -7,6 +7,15 @@ import { TRIAL_COOKIE } from "./trialConfig";
 
 const SECRET = process.env.TRIAL_COOKIE_SECRET || "voiceprint-dev-trial-secret";
 
+// The dev fallback is public (it's in the repo), so using it in production makes the trial cookie
+// forgeable. Shout loudly in the server logs if a deploy forgot to set a real secret.
+if (process.env.NODE_ENV === "production" && !process.env.TRIAL_COOKIE_SECRET) {
+  console.error(
+    "[VOICEPRINT] SECURITY: TRIAL_COOKIE_SECRET is not set in production — the free-trial cookie " +
+      "can be forged. Set it in your host's environment (render.yaml generates one automatically).",
+  );
+}
+
 function sign(value: string): string {
   return createHmac("sha256", SECRET).update(value).digest("hex");
 }

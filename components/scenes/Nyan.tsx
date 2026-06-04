@@ -39,6 +39,7 @@ function drawCat(
   cy: number,
   t: number,
   wiggle: number,
+  openness: number,
 ): void {
   const bodyW = 66;
   const bodyH = 44;
@@ -90,8 +91,18 @@ function drawCat(
   ctx.fillStyle = "#ff7fa8"; // cheeks
   ctx.fillRect(hx + 4, hy + 16, 5, 4);
   ctx.fillRect(hx + 21, hy + 16, 5, 4);
-  ctx.fillStyle = "#000000"; // tiny mouth
-  ctx.fillRect(hx + 13, hy + 18, 4, 2);
+  // Mouth: opens with your voice — meow! (a tiny closed line when quiet).
+  const my = hy + 18;
+  if (openness > 0.15) {
+    const mh = 2 + openness * 9;
+    ctx.fillStyle = "#3a1020"; // open mouth
+    ctx.fillRect(hx + 11, my, 8, mh);
+    ctx.fillStyle = "#ff5f8f"; // tongue
+    ctx.fillRect(hx + 12, my + mh - 2, 6, 2);
+  } else {
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(hx + 13, my, 4, 2);
+  }
 }
 
 /** NYAN — a pixel cat that bobs to your voice, trailing a marching rainbow (CLAUDE.md §5). */
@@ -158,7 +169,7 @@ export function Nyan() {
       }
       ctx.globalAlpha = 1;
 
-      drawCat(ctx, catCenterX, cy, t, style.wiggle);
+      drawCat(ctx, catCenterX, cy, t, style.wiggle, style.mouth);
     };
 
     raf = requestAnimationFrame(tick);

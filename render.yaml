@@ -2,7 +2,7 @@
 # Runs as a single long-running Node server, so the on-disk converted-audio store works as-is.
 services:
   - type: web
-    name: voiceprint
+    name: voiceprint-scr
     runtime: node
     plan: free
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build

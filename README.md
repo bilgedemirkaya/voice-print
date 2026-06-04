@@ -1,21 +1,10 @@
 # VOICEPRINT.SCR
 
-> _Record your voice. Watch it become a 1998 screensaver. Select the voice, watch the screensaver change with it._
-
-<p align="center">
-  <video src="docs/demo.webm" controls muted loop width="680"></video>
-</p>
-
-
----
-
-## What is this?
-
 Record yourself, say a sentence, and a WebGL **screensaver springs to life, driven entirely by your voice.** Depending on your voice, the colors run hot and the motion spikes or it cools down and settles.
 
 Open **Display Properties → Screen Saver** dialog and dial in a *vibe*; gender, age, accent, mood. Behind the scenes that picks a real ElevenLabs voice and **transforms your recording through it.** Depending on the pick, the screensaver **visibly transforms too**: new palette, new energy, a different waveform shape. You *hear* a new voice and *see* the visuals answer at the same instant.
 
-Stack up a few voices, each one remembers its own screensaver and identity, so flipping between them flips the entire mood. When you found the one, **export it as a shareable "voiceprint"** — a video with sound, or a GIF — and post it.
+Stack up a few voices, each one remembers its own screensaver and identity, so flipping between them flips the entire mood. When you found the one, **export it as a shareable "voiceprint"** — a video with sound, or a GIF.
 
 ---
 
@@ -37,18 +26,18 @@ pnpm dev
 
 Open **http://localhost:3000** and you'll boot straight into the desktop.
 
-> No ElevenLabs key? The desktop, recording, and live visualization all work — only the voice _transform_ step needs one. Grab a free key at [elevenlabs.io](https://elevenlabs.io).
+> You need ElevenLabs to use voice transform feature on local. Grab a free key at [elevenlabs.io](https://elevenlabs.io).
 
 ---
 
-## How to play with it
+## Features
 
-1. **Hit record** and say something. The screensaver starts dancing to your voice immediately.
-2. The **Display Properties → Screen Saver** dialog pops open. Here you:
-   - dial in a **vibe** with the Gender / Age / Accent / Vibe filters (they cascade — picking one narrows the rest, and the system matches you to a real ElevenLabs voice),
-   - pick a **screensaver** — WAVEFIELD, MYSTIFY, STARFIELD, **NYAN** (a pixel cat that bobs to your voice), or **TOASTERS** (the After Dark flying toasters, wings flapping to your voice),
-   - tune **Stability / Similarity / Style**, then hit **Apply**.
-3. Your clip gets transformed and plays back — the visualization takes on that voice's **color** and **scene**.
+1. The screensaver reacts to your voice immediately while recording.
+2. Display Properties sets:
+   - a mood with the Gender / Age / Accent / Vibe filters (they cascade — picking one narrows the rest, and the system matches you to a real ElevenLabs voice),
+   - a **screensaver** — WAVEFIELD, MYSTIFY, STARFIELD, **NYAN** (a pixel cat that bobs to your voice), or **TOASTERS** (the After Dark flying toasters, wings flapping to your voice),
+   - New voice's **Stability / Similarity / Style**.
+3. Your clip gets transformed and plays back. The visualization takes on that voice's **color** and **scene**.
 4. Use the **You / Voice A / Voice B / +** tabs to A/B them. Each voice keeps its own screensaver and palette, so flipping tabs flips the whole vibe.
 5. In the player, pick a format — **Video + sound** (`voiceprint.webm`) or **GIF** (`voiceprint.gif`) — and hit **🎬 Export** to download your shareable voiceprint of the live visuals.
 
@@ -86,47 +75,6 @@ ElevenLabs (voice list + speech-to-speech)
 
 Converted audio is served back by **handle** (`/api/audio/[handle]`), never shuttled around as giant base64 blobs. All audio analysis (FFT → `AnimationParams`) is pure, client-side, and unit-tested.
 
----
-
-## Commands
-
-```bash
-pnpm dev          # run the app
-pnpm build        # production build
-pnpm start        # serve the production build
-
-pnpm typecheck    # tsc
-pnpm lint         # eslint
-pnpm test         # vitest (92 tests)
-pnpm format       # prettier
-```
-
----
-
-## Environment variables
-
-All of these go in `.env.local` (gitignored) and are read **server-side only** (CLAUDE.md §10); just the key is required.
-
-| Variable | Purpose |
-|---|---|
-| `ELEVENLABS_API_KEY` | The shared key powering voice transforms. **Required** to transform. |
-| `AUDIO_TMP_DIR` | Where converted audio is written/served by handle (optional; sensible default). |
-| `ACCESS_CODE` | Shared code that unlocks unlimited transforms for friends. Unset = no code unlocks (BYOK + trial still work). |
-| `TRIAL_COOKIE_SECRET` | Signs the free-trial cookie. Set a random value in prod (dev default otherwise). |
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | Optional per-IP backstop. Blank = cookie-only. Free DB at [Upstash](https://console.upstash.com). |
-| `TRIAL_IP_DAILY_CAP` | Max free transforms per IP per day (default 10). |
-
----
-
-## Deploy
-
-Deploy to **Render** (or Railway/Fly) — a single long-running Node server, so the on-disk converted-audio store works unchanged. There's a [`render.yaml`](render.yaml) blueprint: on render.com → **New → Blueprint → pick this repo**, then fill in `ELEVENLABS_API_KEY` and `ACCESS_CODE` (`TRIAL_COOKIE_SECRET` is auto-generated). Build `pnpm install && pnpm build`, start `pnpm start`, Node pinned by [`.node-version`](.node-version).
-
-> **Heads-up for serverless (Vercel/Netlify):** converted audio is written to local disk and fetched by handle in a *second* request — across ephemeral instances that file may be gone, so audio can 404. Use a long-running host, or switch `/api/transform` to return the audio inline first.
-
-Recordings are capped at **15s** (client-side) to keep ElevenLabs credit cost predictable and avoid transform timeouts.
-
----
 
 ## Privacy
 
@@ -157,6 +105,6 @@ The audio feature extraction is pure and unit-tested; scenes are dumb consumers 
 
 ---
 
-## Tech stack
+## Contributing
 
-Next.js (App Router) · TypeScript (strict) · Tailwind CSS v4 · Three.js + @react-three/fiber + drei · Zustand · Framer Motion · Vitest.
+Ideas, bug reports, and PRs are very welcome — **we're always open to new screensavers, UX polish, and improvements.** Open an issue and let's build it. See **[CONTRIBUTING.md](CONTRIBUTING.md)** to get started — it includes a quick "add a screensaver" walkthrough.

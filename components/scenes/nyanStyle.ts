@@ -8,6 +8,7 @@ export type NyanStyle = {
   scroll: number; // px/frame the trail + stars march left (energy)
   trail: number; // 0..1 rainbow vividness (energy)
   wiggle: number; // leg/tail wiggle (energy); 0 under reduced motion
+  mouth: number; // 0..1 mouth openness (energy) — the cat "meows" as you get louder
   starColor: string; // twinkle accent, from the voice palette
 };
 
@@ -28,6 +29,7 @@ export function nyanStyle(
     scroll: reduced ? 1 : 2 + energy * 5,
     trail: reduced ? 0.45 : 0.4 + energy * 0.6,
     wiggle: reduced ? 0 : 0.3 + energy,
+    mouth: clamp01(energy * 1.6),
     starColor: params.palette[0],
   };
 }

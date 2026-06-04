@@ -19,6 +19,12 @@ describe("nyanStyle", () => {
     expect(bright.bobSpeed).toBeGreaterThan(dull.bobSpeed);
   });
 
+  it("opens the mouth (meow) as energy rises", () => {
+    expect(nyanStyle({ ...base, energy: 1 }).mouth).toBeGreaterThan(
+      nyanStyle({ ...base, energy: 0 }).mouth,
+    );
+  });
+
   it("uses the first palette swatch for the star accent", () => {
     const palette: [string, string, string] = ["#112233", "#445566", "#778899"];
     expect(nyanStyle({ ...base, palette }).starColor).toBe("#112233");
