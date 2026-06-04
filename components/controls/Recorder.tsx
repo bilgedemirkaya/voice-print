@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/retro/Button";
+import { Dialog } from "@/components/retro/Dialog";
 import { VuMeter } from "@/components/controls/VuMeter";
 import { exportSceneVideo } from "@/lib/exportVideo";
 import { exportSceneGif } from "@/lib/exportGif";
@@ -10,6 +11,7 @@ import { useIsTransforming } from "@/components/controls/useTransform";
 import { useAudioContext } from "@/components/controls/useAudioContext";
 import { useRecording, type RecordingStatus } from "@/components/controls/useRecording";
 import { useClipPlayback } from "@/components/controls/useClipPlayback";
+import { sfx } from "@/lib/sfx";
 import { cn } from "@/lib/cn";
 
 const STATUS_LABEL: Record<RecordingStatus, string> = {
@@ -47,6 +49,7 @@ export function Recorder({
 } = {}) {
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<"webm" | "gif">("webm");
+  const [confirmingReset, setConfirmingReset] = useState(false);
   const lastConversionRef = useRef<string | null>(null);
 
   const source = useAudioStore((s) => s.selectedTakeId); // "original" or a voiceId
@@ -56,6 +59,7 @@ export function Recorder({
   const transformError = useAudioStore((s) => s.transformError);
   const exporting = useAudioStore((s) => s.exporting);
   const setExporting = useAudioStore((s) => s.setExporting);
+  const reset = useAudioStore((s) => s.reset);
   const transforming = useIsTransforming();
 
   const activeConversion = conversions.find((c) => c.voiceId === source) ?? null;
@@ -63,7 +67,7 @@ export function Recorder({
   const currentLabel = source === ORIGINAL_TAKE_ID ? "You" : (activeConversion?.voiceName ?? "Voice");
 
   const ensureContext = useAudioContext();
-  const { status, micError, recordSecondsLeft, start, stop } = useRecording({
+  const { status, micError, recordSecondsLeft, start, stop, reset: resetRecording } = useRecording({
     ensureContext,
     onRecorded,
   });
@@ -76,12 +80,22 @@ export function Recorder({
     togglePlay,
     playNow,
     requestPlay,
+    stopPlayback,
     onSeekDown,
     onSeekMove,
     onSeekUp,
     ensureGraph,
     getAudioStream,
   } = useClipPlayback({ ensureContext, label: currentLabel });
+
+  // "Start over": stop playback, clear the recorder UI, and wipe the session (recording + voices).
+  const handleReset = useCallback(() => {
+    stopPlayback();
+    resetRecording();
+    reset();
+    setConfirmingReset(false);
+    sfx.stop();
+  }, [stopPlayback, resetRecording, reset]);
 
   // Keep an object URL alive for the original recording while it's the selected source.
   useEffect(() => {
@@ -155,6 +169,7 @@ export function Recorder({
   const progress = duration > 0 ? currentTime / duration : 0;
 
   return (
+    <>
     <div className="flex flex-col gap-2 text-xs">
       <div className="flex items-center gap-2">
         {status === "recording" ? (
@@ -221,6 +236,14 @@ export function Recorder({
                 +
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setConfirmingReset(true)}
+              title="Discard the recording and all voices"
+              className="bevel-raised active:bevel-pressed ml-auto bg-w95-silver px-2 py-0.5"
+            >
+              ↺ Start over
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -275,5 +298,19 @@ export function Recorder({
         </div>
       )}
     </div>
+
+      <Dialog open={confirmingReset} title="Start over" onClose={() => setConfirmingReset(false)}>
+        <div className="flex flex-col gap-3 text-xs">
+          <p className="leading-snug">
+            This discards your recording and all converted voices. You&apos;ll start from a blank
+            slate.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setConfirmingReset(false)}>Cancel</Button>
+            <Button onClick={handleReset}>Start over</Button>
+          </div>
+        </div>
+      </Dialog>
+    </>
   );
 }

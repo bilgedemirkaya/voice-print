@@ -77,6 +77,13 @@ export function useRecording({
     sfx.stop();
   }, []);
 
+  /** Return the recorder UI to its initial idle state (used by "Start over"). */
+  const reset = useCallback(() => {
+    setStatus("idle");
+    setMicError(null);
+    setRecordSecondsLeft(0);
+  }, []);
+
   // Tick the countdown while recording and auto-stop at the cap.
   useEffect(() => {
     if (status !== "recording") return;
@@ -95,5 +102,5 @@ export function useRecording({
     };
   }, []);
 
-  return { status, micError, recordSecondsLeft, start, stop };
+  return { status, micError, recordSecondsLeft, start, stop, reset };
 }

@@ -123,6 +123,13 @@ export function useClipPlayback({
     setPlayingLabel(null);
   }, [setPlayingLabel]);
 
+  /** Hard-stop playback (e.g. on reset): pause the element and tear down the running analyser. */
+  const stopPlayback = useCallback(() => {
+    pendingPlayRef.current = false;
+    audioRef.current?.pause();
+    handleStop();
+  }, [handleStop]);
+
   // MediaRecorder webm reports duration: Infinity until forced — discover it, then reset.
   const handleLoadedMetadata = useCallback(
     (event: React.SyntheticEvent<HTMLAudioElement>) => {
@@ -170,6 +177,7 @@ export function useClipPlayback({
     togglePlay,
     playNow,
     requestPlay,
+    stopPlayback,
     onSeekDown,
     onSeekMove,
     onSeekUp,

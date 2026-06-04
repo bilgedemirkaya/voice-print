@@ -62,6 +62,8 @@ type AudioState = {
   clearDraft: () => void;
   /** Insert or replace a converted take (used on transform success). */
   addConversion: (conversion: Conversion) => void;
+  /** Discard the recording + all takes and return to a clean slate (keeps display + access prefs). */
+  reset: () => void;
 
   setVoiceSettings: (settings: VoiceSettings) => void;
   setDirty: (dirty: boolean) => void;
@@ -171,6 +173,22 @@ export const useAudioStore = create<AudioState>()((set) => ({
           ? s.conversions.map((c, i) => (i === index ? conversion : c))
           : [...s.conversions, conversion];
       return { conversions };
+    }),
+
+  // Wipe the working session (recording, takes, draft, tuning) but keep display + access prefs.
+  // The chosen "You" screensaver is a preference, so it survives too.
+  reset: () =>
+    set({
+      params: silentParams(),
+      recordedBlob: null,
+      conversions: [],
+      selectedTakeId: ORIGINAL_TAKE_ID,
+      draft: null,
+      voiceSettings: DEFAULT_VOICE_SETTINGS,
+      dirty: false,
+      transformError: null,
+      playingLabel: null,
+      voicePalette: null,
     }),
 
   setVoiceSettings: (voiceSettings) => set({ voiceSettings }),
