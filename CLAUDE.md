@@ -56,7 +56,8 @@ These extend the brief without changing its spirit. Treat as opt-in:
 | Audio analysis | **Web Audio API** (`AnalyserNode`) | FFT + time-domain data drive the visuals. No external lib needed. |
 | Voice transform | **ElevenLabs API** (Speech-to-Speech / Voice Changer) | The core integration. Called server-side from the Next.js app (`lib/elevenlabs.ts`); the key never reaches the browser. |
 | Styling | **Tailwind CSS** + a small hand-written 95/98 component layer | Don't pull in a heavy retro-UI kit and call it done; build the chrome yourself to show craft. |
-| State | **Zustand** | Single store for audio state, active filter, animation params. |
+| Client state | **Zustand** | The user's working session: recording, converted *takes*, scene selection, animation params. Domain types live in `lib/types.ts`. |
+| Server state | **TanStack Query** | Voices list (`useVoices`) + transform/access requests. Owns fetch caching/dedupe/status; the *results* that persist (takes) live in Zustand. Hooks in `lib/queries.ts` + `useTransform`. |
 | Animation polish | **Framer Motion** (UI only, not the canvas) | Window open/close, dialog transitions. |
 
 > `three.js (maybe)` from the brief → **resolved to yes**, via react-three-fiber. The audio-reactive WebGL scene is what makes the FE work impressive.
@@ -175,13 +176,16 @@ Routes return audio **handles**, never raw audio.
     /voices               list voices (GET)
     /access               validate the access code (POST)
   page.tsx                the "desktop" entry (served at /)
+  providers.tsx           client providers (TanStack Query client)
 /components
   /retro                  hand-built 95/98 chrome (Window, Button, Dialog, TaskBar)
   /scenes                 scenes (Wavefield WebGL; Mystify, Starfield, Nyan, Toasters 2D)
-  /controls               recorder, filter picker, sliders, export
+  /controls               recorder, filter picker, sliders, export, useTransform (transform mutation)
 /lib
   /audio                  analyser, feature extraction, params mapping
-  /store                  zustand store + audio handle store
+  /store                  zustand store (working session) + audio handle store
+  types.ts                shared domain types (SceneId, Voice, VoiceSettings, Conversion, VoiceDraft)
+  queries.ts              TanStack Query hooks (useVoices, useSubmitAccessCode)
   elevenlabs.ts           server-side ElevenLabs client (voices + speech-to-speech)
   trial.ts trialIp.ts access.ts   access model (trial / IP backstop / code)
 ```

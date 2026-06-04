@@ -1,134 +1,168 @@
 import { create } from "zustand";
 import { silentParams } from "@/lib/audio/params";
 import type { AnimationParams } from "@/lib/audio/types";
+import type { Conversion, Palette, SceneId, VoiceDraft, VoiceSettings } from "@/lib/types";
+import { DEFAULT_VOICE_SETTINGS } from "@/lib/types";
 
-export type SceneId = "wavefield" | "mystify" | "starfield" | "nyan" | "toasters";
-
-export type VoiceSettings = {
-  stability: number;
-  similarity_boost: number;
-  style: number;
-};
-
-export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
-  stability: 0.5,
-  similarity_boost: 0.85,
-  style: 0,
-};
-
-export type Voice = { id: string; name: string; labels: Record<string, string> };
-
-/** One converted take of the current recording, with its own scene + color identity. */
-export type Conversion = {
-  voiceId: string;
-  voiceName: string;
-  url: string;
-  sceneId: SceneId;
-  palette: [string, string, string];
-};
-
-export type VoicesStatus = "idle" | "loading" | "ready" | "error";
+/** The id of the original "You" recording in the compare gallery. */
+export const ORIGINAL_TAKE_ID = "original";
 
 type AudioState = {
-  // live analysis
+  // --- live analysis -------------------------------------------------------
   params: AnimationParams;
-  // scene + voice selection (driven by the Display Properties picker)
-  activeScene: SceneId;
-  targetVoiceId: string;
-  voiceSettings: VoiceSettings;
-  // recorded source + converted result + transform status
+
+  // --- recording + takes ---------------------------------------------------
   recordedBlob: Blob | null;
-  // converted takes of the current recording (one per voice), for the A/B/C compare gallery
+  /** The "You" recording's own screensaver (captured on record, restored when selected). */
+  originalScene: SceneId;
+  /** Converted takes of the current recording (one per voice), for the compare gallery. */
   conversions: Conversion[];
-  // which compare tab is selected: "original" or a conversion's voiceId
-  selectedSource: string;
-  transforming: boolean;
+  /** Which take is shown + played: ORIGINAL_TAKE_ID, or a conversion's voiceId. */
+  selectedTakeId: string;
+  /**
+   * A new voice being composed in the dialog, or null when editing the selected take directly.
+   * While a draft exists it *is* the displayed take — its scene/voice/color never touch an
+   * existing take until Apply materializes it. This is what stops "add a voice" from clobbering
+   * another take's screensaver.
+   */
+  draft: VoiceDraft | null;
+
+  // --- voice-changer settings (applied on Apply) ---------------------------
+  voiceSettings: VoiceSettings;
+  /** Whether settings/voice have changed since the last Apply (drives the Apply button). */
+  dirty: boolean;
   transformError: string | null;
-  // whether a visualization clip is currently being recorded for export
-  exporting: boolean;
-  // display
+
+  // --- display -------------------------------------------------------------
   crtEnabled: boolean;
   soundEnabled: boolean;
-  // label of the clip currently driving the visuals (e.g. "You" / a voice name), or null
+  /** Whether a visualization clip is currently being recorded for export. */
+  exporting: boolean;
+  /** Label of the clip currently driving the visuals (e.g. "You" / a voice name), or null. */
   playingLabel: string | null;
-  // color identity for the selected voice (gender/vibe), overriding the audio palette; or null
-  voicePalette: [string, string, string] | null;
-  // whether settings have changed since the last Apply (drives the Apply button)
-  dirty: boolean;
-  // shared access code that unlocks the host's key (in-memory + sessionStorage), or null
-  accessCode: string | null;
-  // a visitor's own ElevenLabs key (BYOK, in-memory + sessionStorage), or null
-  userApiKey: string | null;
-  // free transforms left on the shared key per the server, or null when unknown / unlimited
-  trialRemaining: number | null;
-  // voices, fetched once and cached
-  voices: Voice[];
-  voicesStatus: VoicesStatus;
-  voicesError: string | null;
+  /** Color identity of the displayed take (overrides the audio palette); read by every scene. */
+  voicePalette: Palette | null;
 
+  // --- access model --------------------------------------------------------
+  accessCode: string | null;
+  userApiKey: string | null;
+  trialRemaining: number | null;
+
+  // --- actions -------------------------------------------------------------
   setParams: (params: AnimationParams) => void;
-  setActiveScene: (scene: SceneId) => void;
-  setTargetVoiceId: (voiceId: string) => void;
-  setVoiceSettings: (settings: VoiceSettings) => void;
   setRecordedBlob: (blob: Blob | null) => void;
+
+  /** Pick a take to view + edit; exits any in-progress draft. */
+  selectTake: (id: string) => void;
+  /** Set the screensaver of the thing currently being edited (the draft, or the selected take). */
+  setEditingScene: (scene: SceneId) => void;
+  /** Begin (or retarget) composing a new voice; its scene starts from what's on screen. */
+  setDraftVoice: (voiceId: string, voiceName: string, palette: Palette | null) => void;
+  /** Discard the draft and fall back to editing the selected take. */
+  clearDraft: () => void;
+  /** Insert or replace a converted take (used on transform success). */
   addConversion: (conversion: Conversion) => void;
-  setSelectedSource: (source: string) => void;
-  /** Update one converted take's screensaver in place (live — no re-transform). */
-  setConversionScene: (voiceId: string, sceneId: SceneId) => void;
-  setTransforming: (transforming: boolean) => void;
+
+  setVoiceSettings: (settings: VoiceSettings) => void;
+  setDirty: (dirty: boolean) => void;
   setTransformError: (error: string | null) => void;
-  setExporting: (exporting: boolean) => void;
+
   setCrtEnabled: (enabled: boolean) => void;
   setSoundEnabled: (enabled: boolean) => void;
+  setExporting: (exporting: boolean) => void;
   setPlayingLabel: (label: string | null) => void;
-  setVoicePalette: (palette: [string, string, string] | null) => void;
-  setDirty: (dirty: boolean) => void;
+
   setAccessCode: (code: string | null) => void;
   setUserApiKey: (key: string | null) => void;
   setTrialRemaining: (remaining: number | null) => void;
   /** Restore a previously-accepted access code + BYOK key from sessionStorage (client only). */
   hydrateAccess: () => void;
-  /** Fetch voices once and cache them; no-op if already loading/ready. */
-  loadVoices: () => Promise<void>;
 };
 
-/** Single source of truth for live audio-reactive state + filter selection (CLAUDE.md §3). */
-export const useAudioStore = create<AudioState>()((set, get) => ({
+/** The screensaver currently on screen: the draft's, else the selected take's. */
+export function selectActiveScene(s: AudioState): SceneId {
+  if (s.draft) return s.draft.sceneId;
+  if (s.selectedTakeId === ORIGINAL_TAKE_ID) return s.originalScene;
+  return s.conversions.find((c) => c.voiceId === s.selectedTakeId)?.sceneId ?? s.originalScene;
+}
+
+/**
+ * The live params a scene should paint with: the displayed take's voice palette overrides the
+ * audio-derived one (CLAUDE.md §5). One home for this rule so scenes stay dumb consumers.
+ */
+export function selectVisualParams(s: AudioState): AnimationParams {
+  return s.voicePalette ? { ...s.params, palette: s.voicePalette } : s.params;
+}
+
+/** The color identity of a take by id (null for the original "You" take). */
+function paletteForTake(s: Pick<AudioState, "conversions">, id: string): Palette | null {
+  if (id === ORIGINAL_TAKE_ID) return null;
+  return s.conversions.find((c) => c.voiceId === id)?.palette ?? null;
+}
+
+/** Single source of truth for the user's working session: recording, takes, selection (CLAUDE.md §3). */
+export const useAudioStore = create<AudioState>()((set) => ({
   params: silentParams(),
-  activeScene: "nyan",
-  targetVoiceId: "",
-  voiceSettings: DEFAULT_VOICE_SETTINGS,
   recordedBlob: null,
+  originalScene: "nyan",
   conversions: [],
-  selectedSource: "original",
-  transforming: false,
+  selectedTakeId: ORIGINAL_TAKE_ID,
+  draft: null,
+  voiceSettings: DEFAULT_VOICE_SETTINGS,
+  dirty: false,
   transformError: null,
-  exporting: false,
   crtEnabled: true,
   soundEnabled: true,
+  exporting: false,
   playingLabel: null,
   voicePalette: null,
-  dirty: false,
   accessCode: null,
   userApiKey: null,
   trialRemaining: null,
-  voices: [],
-  voicesStatus: "idle",
-  voicesError: null,
 
   setParams: (params) => set({ params }),
-  setActiveScene: (activeScene) => set({ activeScene }),
-  setTargetVoiceId: (targetVoiceId) => set({ targetVoiceId }),
-  setVoiceSettings: (voiceSettings) => set({ voiceSettings }),
-  // a new recording invalidates prior conversions (they were of the old audio)
+
+  // A new recording invalidates prior conversions (they were of the old audio). "You" keeps
+  // whatever screensaver was on screen while recording.
   setRecordedBlob: (recordedBlob) =>
-    set({
+    set((s) => ({
       recordedBlob,
-      dirty: true,
       conversions: [],
+      selectedTakeId: ORIGINAL_TAKE_ID,
+      draft: null,
       voicePalette: null,
-      selectedSource: "original",
+      originalScene: selectActiveScene(s),
+      dirty: true,
+    })),
+
+  selectTake: (id) =>
+    set((s) => ({
+      selectedTakeId: id,
+      draft: null,
+      voicePalette: paletteForTake(s, id),
+    })),
+
+  setEditingScene: (scene) =>
+    set((s) => {
+      if (s.draft) return { draft: { ...s.draft, sceneId: scene } };
+      if (s.selectedTakeId === ORIGINAL_TAKE_ID) return { originalScene: scene };
+      return {
+        conversions: s.conversions.map((c) =>
+          c.voiceId === s.selectedTakeId ? { ...c, sceneId: scene } : c,
+        ),
+      };
     }),
+
+  setDraftVoice: (voiceId, voiceName, palette) =>
+    set((s) => ({
+      draft: { voiceId, voiceName, sceneId: selectActiveScene(s), palette },
+      voicePalette: palette,
+      dirty: true,
+    })),
+
+  clearDraft: () =>
+    set((s) => ({ draft: null, voicePalette: paletteForTake(s, s.selectedTakeId) })),
+
   addConversion: (conversion) =>
     set((s) => {
       const index = s.conversions.findIndex((c) => c.voiceId === conversion.voiceId);
@@ -138,19 +172,16 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
           : [...s.conversions, conversion];
       return { conversions };
     }),
-  setSelectedSource: (selectedSource) => set({ selectedSource }),
-  setConversionScene: (voiceId, sceneId) =>
-    set((s) => ({
-      conversions: s.conversions.map((c) => (c.voiceId === voiceId ? { ...c, sceneId } : c)),
-    })),
-  setTransforming: (transforming) => set({ transforming }),
+
+  setVoiceSettings: (voiceSettings) => set({ voiceSettings }),
+  setDirty: (dirty) => set({ dirty }),
   setTransformError: (transformError) => set({ transformError }),
-  setExporting: (exporting) => set({ exporting }),
+
   setCrtEnabled: (crtEnabled) => set({ crtEnabled }),
   setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
+  setExporting: (exporting) => set({ exporting }),
   setPlayingLabel: (playingLabel) => set({ playingLabel }),
-  setVoicePalette: (voicePalette) => set({ voicePalette }),
-  setDirty: (dirty) => set({ dirty }),
+
   setAccessCode: (accessCode) => {
     if (typeof window !== "undefined") {
       if (accessCode) window.sessionStorage.setItem("vp_access_code", accessCode);
@@ -171,26 +202,5 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
     const code = window.sessionStorage.getItem("vp_access_code");
     const key = window.sessionStorage.getItem("vp_byok_key");
     set({ accessCode: code || null, userApiKey: key || null });
-  },
-  loadVoices: async () => {
-    const status = get().voicesStatus;
-    if (status === "loading" || status === "ready") return;
-    set({ voicesStatus: "loading", voicesError: null });
-    try {
-      const res = await fetch("/api/voices");
-      const data = (await res.json()) as { voices?: Voice[]; error?: string };
-      if (!res.ok || !data.voices) throw new Error(data.error ?? "Failed to load voices");
-      const voices = data.voices;
-      set((s) => ({
-        voices,
-        voicesStatus: "ready",
-        targetVoiceId: s.targetVoiceId || voices[0]?.id || "",
-      }));
-    } catch (err) {
-      set({
-        voicesStatus: "error",
-        voicesError: err instanceof Error ? err.message : "Failed to load voices",
-      });
-    }
   },
 }));

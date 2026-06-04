@@ -1,9 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useReducedMotion } from "framer-motion";
-import { useAudioStore } from "@/lib/store/audioStore";
-import { fitCanvasCover } from "@/lib/canvasCover";
+import { useCanvas2DScene } from "./useCanvas2DScene";
 import { nyanStyle, type NyanStyle } from "./nyanStyle";
 
 const W = 640;
@@ -107,74 +104,61 @@ function drawCat(
 
 /** NYAN — a pixel cat that bobs to your voice, trailing a marching rainbow (CLAUDE.md §5). */
 export function Nyan() {
-  const reduced = useReducedMotion() ?? false;
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useCanvas2DScene(
+    (ctx, reduced) => {
+      const stars: Star[] = Array.from({ length: STAR_COUNT }, () => ({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        size: 2 + Math.floor(Math.random() * 3),
+        phase: Math.random() * Math.PI * 2,
+      }));
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    ctx.imageSmoothingEnabled = false; // keep the pixels crisp
+      const catCenterX = 400;
+      const trailEnd = catCenterX - 40; // rainbow runs from the left edge to the cat's tail
+      let t = 0;
+      let scrollOffset = 0;
 
-    const stars: Star[] = Array.from({ length: STAR_COUNT }, () => ({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      size: 2 + Math.floor(Math.random() * 3),
-      phase: Math.random() * Math.PI * 2,
-    }));
+      return (params) => {
+        const style: NyanStyle = nyanStyle(params, { reducedMotion: reduced });
 
-    const catCenterX = 400;
-    const trailEnd = catCenterX - 40; // rainbow runs from the left edge to the cat's tail
-    let t = 0;
-    let scrollOffset = 0;
-    let raf = 0;
+        t += 0.016 * style.bobSpeed;
+        scrollOffset += style.scroll;
+        const cy = H / 2 + Math.sin(t) * style.bob;
 
-    const tick = (): void => {
-      raf = requestAnimationFrame(tick);
-      fitCanvasCover(canvas, ctx, W, H); // fill the window, scaling the 640×360 scene up (cover)
-      const s = useAudioStore.getState();
-      const params = s.voicePalette ? { ...s.params, palette: s.voicePalette } : s.params;
-      const style: NyanStyle = nyanStyle(params, { reducedMotion: reduced });
+        // Space background.
+        ctx.fillStyle = "#0a0618";
+        ctx.fillRect(0, 0, W, H);
 
-      t += 0.016 * style.bobSpeed;
-      scrollOffset += style.scroll;
-      const cy = H / 2 + Math.sin(t) * style.bob;
-
-      // Space background.
-      ctx.fillStyle = "#0a0618";
-      ctx.fillRect(0, 0, W, H);
-
-      // Twinkling stars marching left.
-      for (const star of stars) {
-        star.x -= style.scroll * 0.6;
-        if (star.x < -4) {
-          star.x = W + 4;
-          star.y = Math.random() * H;
+        // Twinkling stars marching left.
+        for (const star of stars) {
+          star.x -= style.scroll * 0.6;
+          if (star.x < -4) {
+            star.x = W + 4;
+            star.y = Math.random() * H;
+          }
+          const twinkle = 0.35 + 0.65 * Math.abs(Math.sin(t + star.phase));
+          drawStar(ctx, star.x, star.y, star.size, style.starColor, twinkle);
         }
-        const twinkle = 0.35 + 0.65 * Math.abs(Math.sin(t + star.phase));
-        drawStar(ctx, star.x, star.y, star.size, style.starColor, twinkle);
-      }
 
-      // Rainbow trail (bobs with the cat), with marching darker squares for the scroll feel.
-      const trailTop = cy - (RAINBOW.length * BAND_H) / 2;
-      ctx.globalAlpha = style.trail;
-      for (let b = 0; b < RAINBOW.length; b++) {
-        const y = trailTop + b * BAND_H;
-        ctx.fillStyle = RAINBOW[b];
-        ctx.fillRect(0, y, trailEnd, BAND_H);
-        ctx.fillStyle = "rgba(0,0,0,0.16)";
-        for (let x = -(scrollOffset % (CELL * 2)); x < trailEnd; x += CELL * 2) {
-          ctx.fillRect(x, y, CELL, BAND_H);
+        // Rainbow trail (bobs with the cat), with marching darker squares for the scroll feel.
+        const trailTop = cy - (RAINBOW.length * BAND_H) / 2;
+        ctx.globalAlpha = style.trail;
+        for (let b = 0; b < RAINBOW.length; b++) {
+          const y = trailTop + b * BAND_H;
+          ctx.fillStyle = RAINBOW[b];
+          ctx.fillRect(0, y, trailEnd, BAND_H);
+          ctx.fillStyle = "rgba(0,0,0,0.16)";
+          for (let x = -(scrollOffset % (CELL * 2)); x < trailEnd; x += CELL * 2) {
+            ctx.fillRect(x, y, CELL, BAND_H);
+          }
         }
-      }
-      ctx.globalAlpha = 1;
+        ctx.globalAlpha = 1;
 
-      drawCat(ctx, catCenterX, cy, t, style.wiggle, style.mouth);
-    };
-
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [reduced]);
+        drawCat(ctx, catCenterX, cy, t, style.wiggle, style.mouth);
+      };
+    },
+    { width: W, height: H, pixelated: true },
+  );
 
   return <canvas ref={canvasRef} className="block h-full w-full" />;
 }

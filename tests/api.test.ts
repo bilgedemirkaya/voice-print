@@ -218,10 +218,20 @@ describe("/api/transform per-IP backstop (Upstash)", () => {
 });
 
 describe("/api/voices", () => {
-  it("returns the voice list from the MCP client", async () => {
-    const res = await voicesGet();
+  it("returns the voice list and the free-trial count remaining", async () => {
+    const res = await voicesGet(new Request("http://localhost/api/voices"));
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { voices: Array<{ id: string }> };
+    const json = (await res.json()) as { voices: Array<{ id: string }>; remaining: number };
     expect(json.voices).toEqual([{ id: "v1", name: "Robo", labels: {} }]);
+    expect(json.remaining).toBe(FREE_TRIAL_LIMIT); // no cookie yet → full quota
+  });
+
+  it("reflects used transforms in the remaining count", async () => {
+    const res = await voicesGet(
+      new Request("http://localhost/api/voices", {
+        headers: { cookie: `${TRIAL_COOKIE}=${signTrialCount(1)}` },
+      }),
+    );
+    expect(((await res.json()) as { remaining: number }).remaining).toBe(FREE_TRIAL_LIMIT - 1);
   });
 });

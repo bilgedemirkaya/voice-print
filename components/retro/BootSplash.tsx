@@ -61,7 +61,7 @@ export function BootSplash() {
               VOICEPRINT<span className="opacity-60">.SCR</span>
             </h1>
           </div>
-          <p className="mt-2 text-xs tracking-[0.35em] text-w95-silver opacity-75">A VOICE YOU CAN SEE</p>
+          <p className="mt-2 text-xs tracking-[0.35em] text-w95-silver opacity-75">VOICEPRINT.SCR</p>
           <div className="bevel-inset mt-7 flex gap-0.5 bg-[#140a28] p-1">
             {Array.from({ length: BLOCKS }, (_, i) => (
               <span

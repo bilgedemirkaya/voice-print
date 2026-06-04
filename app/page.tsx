@@ -1,76 +1,68 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, useReducedMotion } from "framer-motion";
-import { Button } from "@/components/retro/Button";
 import { Dialog } from "@/components/retro/Dialog";
-import { TaskBar } from "@/components/retro/TaskBar";
-import { Window } from "@/components/retro/Window";
 import { CrtOverlay } from "@/components/retro/CrtOverlay";
 import { BootSplash } from "@/components/retro/BootSplash";
-import { Recorder } from "@/components/controls/Recorder";
 import { FilterPicker } from "@/components/controls/FilterPicker";
-import { SceneView } from "@/components/scenes/registry";
+import { VisualizerWindow } from "@/components/desktop/VisualizerWindow";
+import { StartMenu } from "@/components/desktop/StartMenu";
+import { DesktopTaskBar } from "@/components/desktop/DesktopTaskBar";
 import { useAudioStore } from "@/lib/store/audioStore";
-import { cn } from "@/lib/cn";
+import { useVoices } from "@/lib/queries";
+import { voicePaletteForLabels } from "@/lib/voicePalette";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { sfx } from "@/lib/sfx";
-
-function useIsMobile(): boolean {
-  const [mobile, setMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 640px)");
-    const update = (): void => setMobile(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-  return mobile;
-}
 
 export default function DesktopPage() {
   const [windowOpen, setWindowOpen] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [maximized, setMaximized] = useState(false);
-  const activeScene = useAudioStore((s) => s.activeScene);
-  const playingLabel = useAudioStore((s) => s.playingLabel);
-  const transforming = useAudioStore((s) => s.transforming);
-  const crtEnabled = useAudioStore((s) => s.crtEnabled);
-  const reducedMotion = useReducedMotion();
-  const loadVoices = useAudioStore((s) => s.loadVoices);
-  const voicesStatus = useAudioStore((s) => s.voicesStatus);
   const [pendingOpen, setPendingOpen] = useState(false);
+
+  const crtEnabled = useAudioStore((s) => s.crtEnabled);
+  const setDraftVoice = useAudioStore((s) => s.setDraftVoice);
+  const reducedMotion = useReducedMotion();
+  // Subscribing here kicks off the voices fetch on mount and tracks when it has settled.
+  const voicesQuery = useVoices();
+  const voicesReady = voicesQuery.status !== "pending";
   const isMobile = useIsMobile();
   const fullscreen = maximized || isMobile; // mobile is always maximized
-  const exporting = useAudioStore((s) => s.exporting);
-  const sceneRef = useRef<HTMLDivElement>(null);
-  const getSceneCanvas = (): HTMLCanvasElement | null =>
-    sceneRef.current?.querySelector("canvas") ?? null;
 
-
-
-  // Prefetch voices + restore any saved bring-your-own-key once on mount.
+  // Restore any saved access code / bring-your-own-key once on mount (voices fetch via useVoices).
   useEffect(() => {
-    void loadVoices();
     useAudioStore.getState().hydrateAccess();
-  }, [loadVoices]);
+  }, []);
 
   // Open the settings dialog only once voices have settled — avoids an empty/loading flash.
   const openSettings = () => {
-    if (voicesStatus === "ready" || voicesStatus === "error") {
+    if (voicesReady) {
       sfx.open();
       setDialogOpen(true);
     } else {
       setPendingOpen(true);
-      void loadVoices();
     }
   };
   useEffect(() => {
-    if (pendingOpen && (voicesStatus === "ready" || voicesStatus === "error")) {
+    if (pendingOpen && voicesReady) {
       setDialogOpen(true);
       setPendingOpen(false);
     }
-  }, [pendingOpen, voicesStatus]);
+  }, [pendingOpen, voicesReady]);
+
+  // "+ Add a voice" composes a *new* take: start a draft (defaulting to a not-yet-used voice) so
+  // the dialog's scene/voice edits ride on the draft — never the selected "You"/voice take.
+  const addVoice = () => {
+    const voices = voicesQuery.data?.voices ?? [];
+    if (voices.length > 0) {
+      const used = new Set(useAudioStore.getState().conversions.map((c) => c.voiceId));
+      const next = voices.find((v) => !used.has(v.id)) ?? voices[0];
+      setDraftVoice(next.id, next.name, voicePaletteForLabels(next.labels));
+    }
+    openSettings();
+  };
 
   return (
     <main className="desktop-bg relative min-h-screen overflow-hidden">
@@ -83,74 +75,21 @@ export default function DesktopPage() {
       >
         <AnimatePresence>
           {windowOpen && (
-            <Window
+            <VisualizerWindow
               key="visualizer"
-              title="VOICEPRINT.SCR — Visualizer"
-              resizable={!fullscreen}
-              fill={fullscreen}
               maximized={maximized}
-              width={880}
-              height={560}
-              minWidth={420}
-              minHeight={320}
+              fullscreen={fullscreen}
+              allowMaximize={!isMobile}
+              pendingOpen={pendingOpen}
               onMinimize={() => setWindowOpen(false)}
-              onMaximize={isMobile ? undefined : () => setMaximized((m) => !m)}
+              onMaximize={() => setMaximized((m) => !m)}
               onClose={() => {
                 setMaximized(false);
                 setWindowOpen(false);
               }}
-            >
-              <div className="flex min-h-0 flex-1 flex-col gap-3">
-                <div
-                  ref={sceneRef}
-                  className="relative min-h-0 flex-1 overflow-hidden bevel-inset bg-[#140a28]"
-                >
-                  <SceneView scene={activeScene} />
-                  {playingLabel && (
-                    <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-1.5 bg-black/55 px-2 py-1 text-[11px] font-bold text-white">
-                      <span
-                        aria-hidden
-                        className="h-1.5 w-1.5 rounded-full bg-[#5fd0ff] motion-safe:animate-pulse"
-                      />
-                      {playingLabel}
-                    </div>
-                  )}
-                  {transforming && (
-                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0a0618]/75 text-white">
-                      <p className="text-xs font-bold tracking-[0.3em]">CONVERTING VOICE…</p>
-                      <div className="bevel-inset flex gap-0.5 bg-[#140a28] p-1">
-                        {Array.from({ length: 12 }, (_, i) => (
-                          <span
-                            key={i}
-                            className="h-2.5 w-2.5 bg-[#5cb8ff] motion-safe:animate-pulse"
-                            style={{ animationDelay: `${i * 0.08}s` }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {exporting && (
-                    <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1.5 bg-black/55 px-2 py-1 text-[11px] font-bold text-white">
-                      <span
-                        aria-hidden
-                        className="h-2 w-2 rounded-full bg-[#e53935] motion-safe:animate-pulse"
-                      />
-                      REC
-                    </div>
-                  )}
-                </div>
-                <div className="flex shrink-0 flex-wrap items-end justify-between gap-2">
-                  <Recorder
-                    onRecorded={openSettings}
-                    onAddVoice={openSettings}
-                    getSceneCanvas={getSceneCanvas}
-                  />
-                  <Button onClick={openSettings} disabled={pendingOpen}>
-                    {pendingOpen ? "Loading voices…" : "Display Properties…"}
-                  </Button>
-                </div>
-              </div>
-            </Window>
+              onOpenSettings={openSettings}
+              onAddVoice={addVoice}
+            />
           )}
         </AnimatePresence>
       </div>
@@ -160,67 +99,23 @@ export default function DesktopPage() {
       </Dialog>
 
       {startOpen && (
-        <nav
-          aria-label="Start menu"
-          className="fixed bottom-9 left-1 z-50 flex w-60 bevel-raised bg-w95-silver p-1"
-        >
-          <div className="mr-1 flex items-end justify-center bg-[linear-gradient(to_top,#9b51e0,#5cb8ff)] px-1.5 py-3">
-            <span className="rotate-180 text-base font-bold tracking-wider text-white [writing-mode:vertical-rl]">
-              VOICEPRINT<span className="opacity-70">.SCR</span>
-            </span>
-          </div>
-          <ul className="flex-1 self-stretch py-1 text-sm">
-            {[
-              {
-                label: "Open Visualizer",
-                icon: "🖥",
-                onClick: () => {
-                  setWindowOpen(true);
-                  setStartOpen(false);
-                },
-              },
-              {
-                label: "Display Properties…",
-                icon: "🎨",
-                onClick: () => {
-                  openSettings();
-                  setStartOpen(false);
-                },
-              },
-            ].map((item) => (
-              <li key={item.label}>
-                <button
-                  type="button"
-                  onClick={item.onClick}
-                  className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-w95-navy hover:text-white focus-visible:bg-w95-navy focus-visible:text-white focus-visible:outline-none"
-                >
-                  <span aria-hidden>{item.icon}</span>
-                  {item.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <StartMenu
+          onOpenVisualizer={() => {
+            setWindowOpen(true);
+            setStartOpen(false);
+          }}
+          onOpenSettings={() => {
+            openSettings();
+            setStartOpen(false);
+          }}
+        />
       )}
 
-      <TaskBar onStartClick={() => setStartOpen((open) => !open)}>
-        <button
-          type="button"
-          onClick={() => setWindowOpen((open) => !open)}
-          className={cn(
-            "flex h-7 min-w-[170px] items-center gap-2 bg-w95-silver px-2 text-left text-sm",
-            windowOpen ? "bevel-pressed" : "bevel-raised",
-          )}
-        >
-          <span aria-hidden className="grid h-3.5 w-3.5 grid-cols-2 grid-rows-2 gap-px">
-            <span className="bg-[#ff6fb5]" />
-            <span className="bg-[#b06bff]" />
-            <span className="bg-[#5fd0ff]" />
-            <span className="bg-[#ffe066]" />
-          </span>
-          <span className="truncate">VOICEPRINT.SCR</span>
-        </button>
-      </TaskBar>
+      <DesktopTaskBar
+        windowOpen={windowOpen}
+        onToggleWindow={() => setWindowOpen((open) => !open)}
+        onStartClick={() => setStartOpen((open) => !open)}
+      />
 
       <CrtOverlay enabled={crtEnabled && !reducedMotion} />
       <BootSplash />

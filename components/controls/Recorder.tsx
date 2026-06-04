@@ -3,24 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/retro/Button";
 import { VuMeter } from "@/components/controls/VuMeter";
-import { sfx } from "@/lib/sfx";
-import { createAudioAnalyser, type AudioAnalyser } from "@/lib/audio/analyser";
 import { exportSceneVideo } from "@/lib/exportVideo";
 import { exportSceneGif } from "@/lib/exportGif";
-import { useAudioStore } from "@/lib/store/audioStore";
+import { ORIGINAL_TAKE_ID, useAudioStore } from "@/lib/store/audioStore";
+import { useIsTransforming } from "@/components/controls/useTransform";
+import { useAudioContext } from "@/components/controls/useAudioContext";
+import { useRecording, type RecordingStatus } from "@/components/controls/useRecording";
+import { useClipPlayback } from "@/components/controls/useClipPlayback";
 import { cn } from "@/lib/cn";
 
-type Status = "idle" | "requesting" | "recording" | "recorded";
-
-const STATUS_LABEL: Record<Status, string> = {
+const STATUS_LABEL: Record<RecordingStatus, string> = {
   idle: "Ready",
   requesting: "Requesting mic…",
   recording: "Recording…",
   recorded: "Recorded",
 };
-
-// Cap recordings: keeps ElevenLabs credit cost predictable and avoids transform timeouts.
-const MAX_RECORD_MS = 15_000;
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -37,6 +34,7 @@ function shortVoiceName(name: string): string {
 /**
  * Records the mic and offers an A/B/C compare gallery: flip between "You" (original) and one or
  * more converted voices — each drives the analyser, so the scene re-reacts to each (M5/M6).
+ * Recording + playback live in the useRecording / useClipPlayback hooks; this wires them together.
  */
 export function Recorder({
   onRecorded,
@@ -47,73 +45,45 @@ export function Recorder({
   onAddVoice?: () => void;
   getSceneCanvas?: () => HTMLCanvasElement | null;
 } = {}) {
-  const [status, setStatus] = useState<Status>("idle");
-  const [micError, setMicError] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [recordSecondsLeft, setRecordSecondsLeft] = useState(0);
-  const source = useAudioStore((s) => s.selectedSource); // "original" or a voiceId
-  const setSource = useAudioStore((s) => s.setSelectedSource);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<"webm" | "gif">("webm");
-
-  const contextRef = useRef<AudioContext | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const micAnalyserRef = useRef<AudioAnalyser | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const audioElRef = useRef<HTMLAudioElement | null>(null);
-  const elementSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const playbackAnalyserRef = useRef<AudioAnalyser | null>(null);
-  const streamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const scrubbingRef = useRef(false);
-  const primingRef = useRef(false);
-  const pendingPlayRef = useRef(false);
   const lastConversionRef = useRef<string | null>(null);
-  const recordStartRef = useRef(0);
 
-  const setParams = useAudioStore((s) => s.setParams);
-  const setRecordedBlob = useAudioStore((s) => s.setRecordedBlob);
+  const source = useAudioStore((s) => s.selectedTakeId); // "original" or a voiceId
+  const selectTake = useAudioStore((s) => s.selectTake);
   const recordedBlob = useAudioStore((s) => s.recordedBlob);
   const conversions = useAudioStore((s) => s.conversions);
-  const transforming = useAudioStore((s) => s.transforming);
   const transformError = useAudioStore((s) => s.transformError);
-  const setPlayingLabel = useAudioStore((s) => s.setPlayingLabel);
-  const setActiveScene = useAudioStore((s) => s.setActiveScene);
-  const setVoicePalette = useAudioStore((s) => s.setVoicePalette);
-  const setTargetVoiceId = useAudioStore((s) => s.setTargetVoiceId);
   const exporting = useAudioStore((s) => s.exporting);
   const setExporting = useAudioStore((s) => s.setExporting);
+  const transforming = useIsTransforming();
 
   const activeConversion = conversions.find((c) => c.voiceId === source) ?? null;
-  const currentUrl = source === "original" ? originalUrl : (activeConversion?.url ?? originalUrl);
-  const currentLabel = source === "original" ? "You" : (activeConversion?.voiceName ?? "Voice");
+  const currentUrl = source === ORIGINAL_TAKE_ID ? originalUrl : (activeConversion?.url ?? originalUrl);
+  const currentLabel = source === ORIGINAL_TAKE_ID ? "You" : (activeConversion?.voiceName ?? "Voice");
 
-  // Each converted voice carries its own screensaver + color; "You" uses the live audio palette.
-  const applyVisualsFor = useCallback(
-    (next: string) => {
-      if (next === "original") {
-        setVoicePalette(null);
-        return;
-      }
-      const conv = conversions.find((c) => c.voiceId === next);
-      if (conv) {
-        setActiveScene(conv.sceneId);
-        setVoicePalette(conv.palette);
-        setTargetVoiceId(conv.voiceId); // the dialog now edits the selected take
-      }
-    },
-    [conversions, setActiveScene, setVoicePalette, setTargetVoiceId],
-  );
+  const ensureContext = useAudioContext();
+  const { status, micError, recordSecondsLeft, start, stop } = useRecording({
+    ensureContext,
+    onRecorded,
+  });
+  const {
+    audioRef,
+    audioProps,
+    isPlaying,
+    currentTime,
+    duration,
+    togglePlay,
+    playNow,
+    requestPlay,
+    onSeekDown,
+    onSeekMove,
+    onSeekUp,
+    ensureGraph,
+    getAudioStream,
+  } = useClipPlayback({ ensureContext, label: currentLabel });
 
-  const ensureContext = useCallback((): AudioContext => {
-    if (!contextRef.current || contextRef.current.state === "closed") {
-      contextRef.current = new AudioContext();
-    }
-    return contextRef.current;
-  }, []);
-
+  // Keep an object URL alive for the original recording while it's the selected source.
   useEffect(() => {
     if (!recordedBlob) {
       setOriginalUrl(null);
@@ -124,123 +94,32 @@ export function Recorder({
     return () => URL.revokeObjectURL(url);
   }, [recordedBlob]);
 
-  useEffect(() => {
-    return () => {
-      micAnalyserRef.current?.dispose();
-      playbackAnalyserRef.current?.dispose();
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      if (contextRef.current && contextRef.current.state !== "closed") {
-        void contextRef.current.close();
-      }
-    };
-  }, []);
-
-  // When a fresh conversion arrives, select it and queue playback.
+  // When a fresh conversion arrives, select it (swapping in its scene + color) and queue playback.
   useEffect(() => {
     const latest = conversions[conversions.length - 1];
     if (latest && latest.url !== lastConversionRef.current) {
       lastConversionRef.current = latest.url;
-      pendingPlayRef.current = true;
-      setSource(latest.voiceId);
-      applyVisualsFor(latest.voiceId);
+      requestPlay();
+      selectTake(latest.voiceId);
     }
-  }, [conversions, applyVisualsFor, setSource]);
+  }, [conversions, selectTake, requestPlay]);
 
-  const maybePlay = useCallback(() => {
-    if (!pendingPlayRef.current) return;
-    pendingPlayRef.current = false;
-    void audioElRef.current?.play().catch(() => undefined);
-  }, []);
+  const selectSource = useCallback(
+    (next: string) => {
+      if (next === source) {
+        playNow(); // re-selecting the current take: just replay it
+      } else {
+        requestPlay(); // play once the new src's metadata loads
+        selectTake(next); // swaps in the take's scene + color, exits any in-progress draft
+      }
+    },
+    [source, selectTake, requestPlay, playNow],
+  );
 
-  const start = useCallback(async () => {
-    setMicError(null);
-    setStatus("requesting");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const context = ensureContext();
-      if (context.state === "suspended") await context.resume();
-
-      const micSource = context.createMediaStreamSource(stream);
-      micAnalyserRef.current = createAudioAnalyser(context, micSource, setParams);
-      micAnalyserRef.current.start();
-
-      const recorder = new MediaRecorder(stream);
-      recorderRef.current = recorder;
-      chunksRef.current = [];
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
-      };
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        setRecordedBlob(blob);
-        setSource("original");
-        lastConversionRef.current = null;
-        micAnalyserRef.current?.stop();
-        streamRef.current?.getTracks().forEach((track) => track.stop());
-        setStatus("recorded");
-        onRecorded?.();
-      };
-      recorder.start();
-      setStatus("recording");
-      recordStartRef.current = Date.now();
-      setRecordSecondsLeft(Math.ceil(MAX_RECORD_MS / 1000));
-      sfx.record();
-    } catch (err) {
-      setMicError(err instanceof Error ? err.message : "Microphone access failed");
-      setStatus("idle");
-    }
-  }, [ensureContext, setParams, setRecordedBlob, onRecorded, setSource]);
-
-  const stop = useCallback(() => {
-    recorderRef.current?.stop();
-    sfx.stop();
-  }, []);
-
-  // Tick the countdown while recording and auto-stop at the cap.
-  useEffect(() => {
-    if (status !== "recording") return;
-    const id = setInterval(() => {
-      const left = MAX_RECORD_MS - (Date.now() - recordStartRef.current);
-      if (left <= 0) stop();
-      else setRecordSecondsLeft(Math.ceil(left / 1000));
-    }, 250);
-    return () => clearInterval(id);
-  }, [status, stop]);
-
-  // Build the playback graph once: element → destination (audible) + analyser + a stream tap so
-  // export can mux the audio into the recorded clip.
-  const ensureGraph = useCallback((): AudioContext | null => {
-    const element = audioElRef.current;
-    if (!element) return null;
-    const context = ensureContext();
-    if (!elementSourceRef.current) {
-      elementSourceRef.current = context.createMediaElementSource(element);
-      elementSourceRef.current.connect(context.destination);
-    }
-    if (!streamDestRef.current) {
-      streamDestRef.current = context.createMediaStreamDestination();
-      elementSourceRef.current.connect(streamDestRef.current);
-    }
-    if (!playbackAnalyserRef.current) {
-      playbackAnalyserRef.current = createAudioAnalyser(context, elementSourceRef.current, setParams);
-    }
-    return context;
-  }, [ensureContext, setParams]);
-
-  const handlePlay = useCallback(() => {
-    const context = ensureGraph();
-    if (!context || !playbackAnalyserRef.current) return;
-    if (context.state === "suspended") void context.resume();
-    playbackAnalyserRef.current.start();
-    setIsPlaying(true);
-    setPlayingLabel(currentLabel);
-  }, [ensureGraph, setPlayingLabel, currentLabel]);
-
-  // Play the current clip from the top and record the live canvas + its audio into a webm.
+  // Play the current clip from the top and record the live canvas + its audio into a clip.
   const handleExport = useCallback(async () => {
     const canvas = getSceneCanvas?.();
-    const element = audioElRef.current;
+    const element = audioRef.current;
     if (!canvas || !element || !currentUrl || exporting) return;
     setExporting(true);
     try {
@@ -248,105 +127,30 @@ export function Recorder({
       if (context?.state === "suspended") await context.resume();
       element.currentTime = 0;
       await element.play().catch(() => undefined);
-      const clipMs =
-        Number.isFinite(element.duration) && element.duration > 0 ? element.duration * 1000 : 0;
+      const clipMs = duration > 0 ? duration * 1000 : 0;
       if (exportFormat === "gif") {
         // GIFs are silent + balloon fast, so cap shorter; audio still plays to drive the visuals.
         await exportSceneGif(canvas, { durationMs: clipMs ? Math.min(clipMs, 6000) : 5000 });
       } else {
         await exportSceneVideo(canvas, {
-          audioStream: streamDestRef.current?.stream ?? null,
+          audioStream: getAudioStream(),
           durationMs: clipMs ? Math.min(clipMs + 200, 20000) : 6000,
         });
       }
     } finally {
       setExporting(false);
     }
-  }, [getSceneCanvas, currentUrl, exporting, exportFormat, ensureGraph, setExporting]);
-
-  const handleStop = useCallback(() => {
-    playbackAnalyserRef.current?.stop();
-    setIsPlaying(false);
-    setPlayingLabel(null);
-  }, [setPlayingLabel]);
-
-  const selectSource = useCallback(
-    (next: string) => {
-      applyVisualsFor(next);
-      if (next === source) {
-        void audioElRef.current?.play().catch(() => undefined);
-        return;
-      }
-      pendingPlayRef.current = true;
-      setSource(next);
-    },
-    [source, applyVisualsFor, setSource],
-  );
-
-  const togglePlay = useCallback(() => {
-    const element = audioElRef.current;
-    if (!element) return;
-    if (element.paused) void element.play().catch(() => undefined);
-    else element.pause();
-  }, []);
-
-  const seekToClientX = useCallback((clientX: number, rect: DOMRect) => {
-    const element = audioElRef.current;
-    if (!element || !Number.isFinite(element.duration)) return;
-    const fraction = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    element.currentTime = fraction * element.duration;
-    setCurrentTime(element.currentTime);
-  }, []);
-
-  const onSeekDown = useCallback(
-    (event: React.PointerEvent<HTMLButtonElement>) => {
-      scrubbingRef.current = true;
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-      seekToClientX(event.clientX, event.currentTarget.getBoundingClientRect());
-    },
-    [seekToClientX],
-  );
-  const onSeekMove = useCallback(
-    (event: React.PointerEvent<HTMLButtonElement>) => {
-      if (scrubbingRef.current) {
-        seekToClientX(event.clientX, event.currentTarget.getBoundingClientRect());
-      }
-    },
-    [seekToClientX],
-  );
-  const onSeekUp = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    scrubbingRef.current = false;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-  }, []);
-
-  // MediaRecorder webm reports duration: Infinity until forced — discover it, then reset.
-  const handleLoadedMetadata = useCallback(
-    (event: React.SyntheticEvent<HTMLAudioElement>) => {
-      const element = event.currentTarget;
-      if (Number.isFinite(element.duration)) {
-        setDuration(element.duration);
-        maybePlay();
-      } else {
-        primingRef.current = true;
-        element.currentTime = 1e7;
-      }
-    },
-    [maybePlay],
-  );
-  const handleDurationChange = useCallback(
-    (event: React.SyntheticEvent<HTMLAudioElement>) => {
-      const element = event.currentTarget;
-      if (!Number.isFinite(element.duration)) return;
-      setDuration(element.duration);
-      if (primingRef.current) {
-        primingRef.current = false;
-        element.currentTime = 0;
-        setCurrentTime(0);
-        maybePlay();
-      }
-    },
-    [maybePlay],
-  );
+  }, [
+    getSceneCanvas,
+    audioRef,
+    currentUrl,
+    exporting,
+    exportFormat,
+    ensureGraph,
+    getAudioStream,
+    duration,
+    setExporting,
+  ]);
 
   const progress = duration > 0 ? currentTime / duration : 0;
 
@@ -382,10 +186,10 @@ export function Recorder({
             <span className="text-w95-darkgray">Compare:</span>
             <button
               type="button"
-              onClick={() => selectSource("original")}
+              onClick={() => selectSource(ORIGINAL_TAKE_ID)}
               className={cn(
                 "bg-w95-silver px-2 py-0.5",
-                source === "original" ? "bevel-pressed" : "bevel-raised active:bevel-pressed",
+                source === ORIGINAL_TAKE_ID ? "bevel-pressed" : "bevel-raised active:bevel-pressed",
               )}
             >
               You
@@ -467,17 +271,7 @@ export function Recorder({
             </div>
           )}
 
-          <audio
-            ref={audioElRef}
-            src={currentUrl ?? undefined}
-            className="hidden"
-            onLoadedMetadata={handleLoadedMetadata}
-            onDurationChange={handleDurationChange}
-            onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-            onPlay={handlePlay}
-            onPause={handleStop}
-            onEnded={handleStop}
-          />
+          <audio ref={audioRef} src={currentUrl ?? undefined} className="hidden" {...audioProps} />
         </div>
       )}
     </div>

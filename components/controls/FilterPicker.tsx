@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/retro/Button";
 import { SCENES, SceneView } from "@/components/scenes/registry";
 import { voicePaletteForLabels } from "@/lib/voicePalette";
-import { useTransform } from "@/components/controls/useTransform";
+import { useTransform, useIsTransforming } from "@/components/controls/useTransform";
 import { exportVoiceCard } from "@/components/controls/exportCard";
 import { sfx } from "@/lib/sfx";
-import { useAudioStore, type VoiceSettings } from "@/lib/store/audioStore";
+import { useVoices, useSubmitAccessCode } from "@/lib/queries";
+import { ORIGINAL_TAKE_ID, selectActiveScene, useAudioStore } from "@/lib/store/audioStore";
+import type { VoiceSettings } from "@/lib/types";
 import { FREE_TRIAL_LIMIT } from "@/lib/trialConfig";
 import { cn } from "@/lib/cn";
 
@@ -28,17 +30,21 @@ const VOICE_FILTERS: Array<{ key: string; label: string }> = [
 /**
  * The fake Display Properties → Screen Saver dialog body (CLAUDE.md §2, §6, §11):
  * pick a screensaver scene, a target voice, and tune the voice settings, then Apply to convert.
+ *
+ * The screensaver always edits whatever is *displayed* — a draft when composing a new voice, else
+ * the selected take — so configuring a different voice never overwrites another take's scene.
  */
 export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
-  const activeScene = useAudioStore((s) => s.activeScene);
-  const setActiveScene = useAudioStore((s) => s.setActiveScene);
-  const setConversionScene = useAudioStore((s) => s.setConversionScene);
-  const setVoicePalette = useAudioStore((s) => s.setVoicePalette);
-  const targetVoiceId = useAudioStore((s) => s.targetVoiceId);
-  const setTargetVoiceId = useAudioStore((s) => s.setTargetVoiceId);
+  const activeScene = useAudioStore(selectActiveScene);
+  const setEditingScene = useAudioStore((s) => s.setEditingScene);
+  const setDraftVoice = useAudioStore((s) => s.setDraftVoice);
+  const clearDraft = useAudioStore((s) => s.clearDraft);
+  const draft = useAudioStore((s) => s.draft);
+  const selectedTakeId = useAudioStore((s) => s.selectedTakeId);
+  const conversions = useAudioStore((s) => s.conversions);
+  const recordedBlob = useAudioStore((s) => s.recordedBlob);
   const voiceSettings = useAudioStore((s) => s.voiceSettings);
   const setVoiceSettings = useAudioStore((s) => s.setVoiceSettings);
-  const transforming = useAudioStore((s) => s.transforming);
   const transformError = useAudioStore((s) => s.transformError);
   const crtEnabled = useAudioStore((s) => s.crtEnabled);
   const setCrtEnabled = useAudioStore((s) => s.setCrtEnabled);
@@ -46,19 +52,27 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const setSoundEnabled = useAudioStore((s) => s.setSoundEnabled);
   const dirty = useAudioStore((s) => s.dirty);
   const setDirty = useAudioStore((s) => s.setDirty);
-  const voices = useAudioStore((s) => s.voices);
-  const conversions = useAudioStore((s) => s.conversions);
-  const voicesError = useAudioStore((s) => s.voicesError);
-  const loadVoices = useAudioStore((s) => s.loadVoices);
   const accessCode = useAudioStore((s) => s.accessCode);
   const setAccessCode = useAudioStore((s) => s.setAccessCode);
   const userApiKey = useAudioStore((s) => s.userApiKey);
   const setUserApiKey = useAudioStore((s) => s.setUserApiKey);
   const trialRemaining = useAudioStore((s) => s.trialRemaining);
 
+  const { data: voicesData, isError: voicesIsError } = useVoices();
+  const voices = voicesData?.voices ?? [];
+  const voicesError = voicesIsError ? "Couldn't load voices." : null;
+
   const transform = useTransform();
+  const transforming = useIsTransforming();
+  const accessMutation = useSubmitAccessCode();
+
+  // The voice the dialog will (re)convert: the draft's when composing, else the selected take's.
+  const currentVoiceId =
+    draft?.voiceId ?? (selectedTakeId !== ORIGINAL_TAKE_ID ? selectedTakeId : "");
+  const currentVoice = voices.find((v) => v.id === currentVoiceId);
+
   const sceneName = SCENES.find((s) => s.id === activeScene)?.name ?? activeScene;
-  const voiceName = voices.find((v) => v.id === targetVoiceId)?.name ?? targetVoiceId;
+  const voiceName = currentVoice?.name ?? currentVoiceId;
   const [activeHint, setActiveHint] = useState(SLIDERS[0].hint);
   const [codeDraft, setCodeDraft] = useState("");
   const [keyDraft, setKeyDraft] = useState("");
@@ -66,27 +80,9 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   // Local dev is unlimited; otherwise the trial applies until a code or a personal key unlocks it.
   const isLocal = process.env.NODE_ENV === "development";
   const unlocked = isLocal || Boolean(accessCode) || Boolean(userApiKey);
-  const freeLeft = trialRemaining ?? FREE_TRIAL_LIMIT;
+  const freeLeft = trialRemaining ?? voicesData?.remaining ?? FREE_TRIAL_LIMIT;
   const trialBlocked = !unlocked && freeLeft <= 0;
 
-  const submitCode = async (): Promise<void> => {
-    const code = codeDraft.trim();
-    if (!code) return;
-    const res = await fetch("/api/access", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code }),
-    });
-    const data = (await res.json().catch(() => ({ ok: false }))) as { ok?: boolean };
-    if (data.ok) {
-      setAccessCode(code);
-      setCodeDraft("");
-      setCodeError(null);
-      setDirty(true);
-    } else {
-      setCodeError("That code didn't work.");
-    }
-  };
   const [filters, setFilters] = useState<Record<string, string>>({
     gender: "",
     age: "",
@@ -97,6 +93,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const matchesFilters = (labels: Record<string, string>, active: Record<string, string>): boolean =>
     VOICE_FILTERS.every((f) => !active[f.key] || labels[f.key] === active[f.key]);
   const matchedVoices = voices.filter((v) => matchesFilters(v.labels, filters));
+  const firstMatch = matchedVoices[0];
   // Cascading: only show values still achievable given the *other* selected filters.
   const optionsFor = (key: string, active: Record<string, string> = filters): string[] =>
     Array.from(
@@ -108,16 +105,16 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
       ),
     ).sort();
 
-  // Selecting a voice gives the screensaver a consistent color identity (from gender/vibe).
+  // Picking a voice sets only the target + its color preview. It must NOT touch any existing
+  // take's screensaver — a different voice composes a draft; re-picking the selected take edits it.
   const applyVoice = (id: string): void => {
-    setTargetVoiceId(id);
-    setDirty(true);
     const voice = voices.find((v) => v.id === id);
-    if (voice) setVoicePalette(voicePaletteForLabels(voice.labels));
-    // Show THIS voice's own scene (its saved one, or the default for a voice not yet converted), so
-    // the scene the next transform captures belongs to this voice — not whatever was last picked.
-    const conv = conversions.find((c) => c.voiceId === id);
-    setActiveScene(conv ? conv.sceneId : "nyan");
+    if (id === selectedTakeId && id !== ORIGINAL_TAKE_ID) {
+      clearDraft();
+      setDirty(true);
+    } else {
+      setDraftVoice(id, voice?.name ?? id, voice ? voicePaletteForLabels(voice.labels) : null);
+    }
   };
 
   const onFilterChange = (key: string, value: string): void => {
@@ -130,21 +127,43 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
     }
     setFilters(next);
     // keep the current voice if it still matches; otherwise jump to the first match
-    if (!voices.some((v) => v.id === targetVoiceId && matchesFilters(v.labels, next))) {
+    if (!voices.some((v) => v.id === currentVoiceId && matchesFilters(v.labels, next))) {
       const first = voices.find((v) => matchesFilters(v.labels, next));
-      if (first) {
-        applyVoice(first.id);
-      } else {
-        setTargetVoiceId("");
-        setDirty(true);
-      }
+      if (first) applyVoice(first.id);
     }
   };
 
-  // No-op if already cached; otherwise fetches once.
+  // Just recorded and nothing converted yet → default to a voice so Apply is ready in one click.
+  // Once any take exists, selecting "You" lets you edit its screensaver without being retargeted.
   useEffect(() => {
-    void loadVoices();
-  }, [loadVoices]);
+    if (
+      recordedBlob &&
+      !draft &&
+      selectedTakeId === ORIGINAL_TAKE_ID &&
+      conversions.length === 0 &&
+      firstMatch
+    ) {
+      setDraftVoice(firstMatch.id, firstMatch.name, voicePaletteForLabels(firstMatch.labels));
+    }
+  }, [recordedBlob, draft, selectedTakeId, conversions.length, firstMatch, setDraftVoice]);
+
+  const submitCode = (): void => {
+    const code = codeDraft.trim();
+    if (!code) return;
+    accessMutation.mutate(code, {
+      onSuccess: (ok) => {
+        if (ok) {
+          setCodeDraft("");
+          setCodeError(null);
+        } else {
+          setCodeError("That code didn't work.");
+        }
+      },
+      onError: () => setCodeError("That code didn't work."),
+    });
+  };
+
+  const canApply = Boolean(recordedBlob) && Boolean(currentVoiceId) && dirty && !transforming && !trialBlocked;
 
   return (
     <div className="flex flex-col gap-3 text-xs">
@@ -175,13 +194,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
               <button
                 type="button"
                 onClick={() => {
-                  if (scene.id !== activeScene) {
-                    setActiveScene(scene.id);
-                    // Re-skin the voice this dialog is editing (the one shown in "→ voice name").
-                    // No-op for a voice with no conversion yet — that scene is captured at transform
-                    // time — so picking a screensaver for a new voice never touches existing takes.
-                    setConversionScene(targetVoiceId, scene.id);
-                  }
+                  if (scene.id !== activeScene) setEditingScene(scene.id);
                 }}
                 className={cn(
                   "w-full px-2 py-1 text-left",
@@ -225,7 +238,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
               ? "Couldn't load voices."
               : "No voices match these filters."
             : `${matchedVoices.length} voice${matchedVoices.length === 1 ? "" : "s"} → ${
-                voices.find((v) => v.id === targetVoiceId)?.name ?? matchedVoices[0].name
+                voiceName || matchedVoices[0].name
               }`}
         </p>
       </div>
@@ -329,13 +342,13 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
                   setCodeError(null);
                 }}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") void submitCode();
+                  if (event.key === "Enter") submitCode();
                 }}
                 placeholder="Access code"
                 aria-label="Access code"
                 className="bevel-inset min-w-0 flex-1 bg-white px-1 py-0.5"
               />
-              <Button onClick={() => void submitCode()} disabled={!codeDraft.trim()}>
+              <Button onClick={submitCode} disabled={!codeDraft.trim()}>
                 Unlock
               </Button>
             </div>
@@ -393,11 +406,10 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
         <Button
           onClick={() => {
             sfx.apply();
-            void transform();
-            setDirty(false);
+            transform();
             onApplied?.();
           }}
-          disabled={transforming || !dirty || !targetVoiceId || trialBlocked}
+          disabled={!canApply}
         >
           {transforming ? "Applying…" : "Apply"}
         </Button>

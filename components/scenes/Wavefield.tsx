@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useReducedMotion } from "framer-motion";
 import * as THREE from "three";
-import { useAudioStore } from "@/lib/store/audioStore";
+import { selectVisualParams, useAudioStore } from "@/lib/store/audioStore";
 import { wavefieldUniforms } from "./wavefieldUniforms";
 
 const SEG_X = 64;
@@ -48,10 +48,7 @@ export function Wavefield() {
     const geom = geomRef.current;
     if (!geom) return;
 
-    const state = useAudioStore.getState();
-    const params = state.voicePalette
-      ? { ...state.params, palette: state.voicePalette }
-      : state.params;
+    const params = selectVisualParams(useAudioStore.getState());
     const u = wavefieldUniforms(params, { reducedMotion: reduced });
     timeRef.current += delta * u.speed;
     const t = timeRef.current;

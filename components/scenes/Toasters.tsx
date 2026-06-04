@@ -1,9 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useReducedMotion } from "framer-motion";
-import { useAudioStore } from "@/lib/store/audioStore";
-import { fitCanvasCover } from "@/lib/canvasCover";
+import { useCanvas2DScene } from "./useCanvas2DScene";
 import { toastersStyle } from "./toastersStyle";
 
 const W = 640;
@@ -72,47 +69,34 @@ function drawToast(ctx: CanvasRenderingContext2D, x: number, y: number): void {
 
 /** TOASTERS — an After Dark homage: winged toasters + toast drift by, wings flapping to your voice. */
 export function Toasters() {
-  const reduced = useReducedMotion() ?? false;
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useCanvas2DScene(
+    (ctx, reduced) => {
+      const flyers: Flyer[] = Array.from({ length: COUNT }, () => spawn(false));
+      let t = 0;
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    ctx.imageSmoothingEnabled = false;
+      return (params) => {
+        const style = toastersStyle(params, { reducedMotion: reduced });
+        t += 0.016;
 
-    const flyers: Flyer[] = Array.from({ length: COUNT }, () => spawn(false));
-    let t = 0;
-    let raf = 0;
+        ctx.fillStyle = "#05030f";
+        ctx.fillRect(0, 0, W, H);
 
-    const tick = (): void => {
-      raf = requestAnimationFrame(tick);
-      fitCanvasCover(canvas, ctx, W, H); // fill the window, scaling the 640×360 scene up (cover)
-      const s = useAudioStore.getState();
-      const params = s.voicePalette ? { ...s.params, palette: s.voicePalette } : s.params;
-      const style = toastersStyle(params, { reducedMotion: reduced });
-      t += 0.016;
+        for (const f of flyers) {
+          f.x += -1.1 * style.speed * f.spd;
+          f.y += 0.75 * style.speed * f.spd;
+          if (f.x < -50 || f.y > H + 50) Object.assign(f, spawn(true));
 
-      ctx.fillStyle = "#05030f";
-      ctx.fillRect(0, 0, W, H);
-
-      for (const f of flyers) {
-        f.x += -1.1 * style.speed * f.spd;
-        f.y += 0.75 * style.speed * f.spd;
-        if (f.x < -50 || f.y > H + 50) Object.assign(f, spawn(true));
-
-        if (f.kind === "toaster") {
-          const wing = Math.sin(t * style.flap + f.phase);
-          drawToaster(ctx, f.x, f.y, wing, style.tint);
-        } else {
-          drawToast(ctx, f.x, f.y);
+          if (f.kind === "toaster") {
+            const wing = Math.sin(t * style.flap + f.phase);
+            drawToaster(ctx, f.x, f.y, wing, style.tint);
+          } else {
+            drawToast(ctx, f.x, f.y);
+          }
         }
-      }
-    };
-
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [reduced]);
+      };
+    },
+    { width: W, height: H, pixelated: true },
+  );
 
   return <canvas ref={canvasRef} className="block h-full w-full" />;
 }

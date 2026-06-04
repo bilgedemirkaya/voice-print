@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, type RenderResult } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DEFAULT_VOICE_SETTINGS, useAudioStore } from "@/lib/store/audioStore";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import { ORIGINAL_TAKE_ID, selectActiveScene, useAudioStore } from "@/lib/store/audioStore";
+import { DEFAULT_VOICE_SETTINGS } from "@/lib/types";
 
 // Avoid pulling next/dynamic + three into the test; we only need the scene metadata.
 vi.mock("@/components/scenes/registry", () => ({
@@ -20,30 +23,34 @@ const VOICES = [
   { id: "v2", name: "Narrator", labels: { gender: "female", age: "middle_aged", accent: "british" } },
 ];
 
+const palette = ["#111", "#222", "#333"] as [string, string, string];
+
 let transformInit: RequestInit | undefined;
 let transformResponse: () => Response;
+
+/** Each render gets its own QueryClient so voices/transform caches don't leak between tests. */
+function renderWithClient(ui: ReactNode): RenderResult {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 function resetStore() {
   if (typeof window !== "undefined") window.sessionStorage.clear();
   useAudioStore.setState({
-    activeScene: "wavefield",
-    targetVoiceId: "",
+    originalScene: "wavefield",
+    conversions: [],
+    selectedTakeId: ORIGINAL_TAKE_ID,
+    draft: null,
     voiceSettings: { ...DEFAULT_VOICE_SETTINGS },
     recordedBlob: null,
-    conversions: [],
-    selectedSource: "original",
-    transforming: false,
+    dirty: false,
     transformError: null,
     crtEnabled: true,
     soundEnabled: true,
     voicePalette: null,
-    dirty: false,
     accessCode: null,
     userApiKey: null,
     trialRemaining: null,
-    voices: [],
-    voicesStatus: "idle",
-    voicesError: null,
   });
 }
 
@@ -80,123 +87,171 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const activeScene = () => selectActiveScene(useAudioStore.getState());
+const draftVoiceId = () => useAudioStore.getState().draft?.voiceId;
+const sceneOf = (voiceId: string) =>
+  useAudioStore.getState().conversions.find((c) => c.voiceId === voiceId)?.sceneId;
+
 describe("FilterPicker", () => {
-  it("loads voices, exposes label filters, and defaults the target voice", async () => {
-    render(<FilterPicker />);
-    // filter options are derived from the voices' labels (no voice dropdown)
+  it("loads voices and exposes cascading label filters", async () => {
+    renderWithClient(<FilterPicker />);
     expect(await screen.findByRole("option", { name: "female" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "male" })).toBeInTheDocument();
-    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
   });
 
-  it("matches voices by a label filter (Gender), updates the voice, and sets a voice palette", async () => {
+  it("picking a voice by a label filter starts a draft and sets a voice palette", async () => {
     const user = userEvent.setup();
-    render(<FilterPicker />);
-    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("option", { name: "female" });
 
     await user.selectOptions(screen.getByRole("combobox", { name: /Gender/i }), "female");
 
-    expect(useAudioStore.getState().targetVoiceId).toBe("v2");
+    expect(draftVoiceId()).toBe("v2");
     expect(useAudioStore.getState().voicePalette).not.toBeNull();
   });
 
   it("selecting a screensaver sets the active scene", async () => {
     const user = userEvent.setup();
-    render(<FilterPicker />);
-    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("button", { name: /MYSTIFY/ });
 
     await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
 
-    expect(useAudioStore.getState().activeScene).toBe("mystify");
+    expect(activeScene()).toBe("mystify");
   });
 
   it("changing the screensaver re-skins only the selected take, live", async () => {
     const user = userEvent.setup();
-    const palette = ["#111", "#222", "#333"] as [string, string, string];
     useAudioStore.setState({
       conversions: [
         { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "wavefield", palette },
         { voiceId: "v2", voiceName: "Narrator", url: "/b.mp3", sceneId: "starfield", palette },
       ],
-      selectedSource: "v2", // the take selected in the gallery — and the dialog edits it
-      targetVoiceId: "v2",
+      selectedTakeId: "v2", // the take selected in the gallery — the dialog edits it
     });
-    render(<FilterPicker />);
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("button", { name: /MYSTIFY/ });
 
     await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
 
-    const convs = useAudioStore.getState().conversions;
-    expect(convs.find((c) => c.voiceId === "v2")?.sceneId).toBe("mystify"); // selected one updated
-    expect(convs.find((c) => c.voiceId === "v1")?.sceneId).toBe("wavefield"); // others untouched
+    expect(sceneOf("v2")).toBe("mystify"); // selected one updated
+    expect(sceneOf("v1")).toBe("wavefield"); // others untouched
   });
 
-  it("configuring a different voice does not overwrite the selected take's scene", async () => {
+  it("configuring a different voice does NOT overwrite the selected take's scene (the bug)", async () => {
     const user = userEvent.setup();
-    const palette = ["#111", "#222", "#333"] as [string, string, string];
     useAudioStore.setState({
       conversions: [
         { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "wavefield", palette },
       ],
-      selectedSource: "v1", // a take is selected…
-      targetVoiceId: "v2", // …but the user navigated to configure a *different* voice
+      selectedTakeId: "v1", // viewing v1…
     });
-    render(<FilterPicker />);
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("option", { name: "female" });
+
+    // …configure a *different* voice (v2), then pick a new screensaver for it
+    await user.selectOptions(screen.getByRole("combobox", { name: /Gender/i }), "female");
+    expect(draftVoiceId()).toBe("v2");
+    await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
+
+    // the new scene rides on the draft only; v1 is left exactly as it was
+    expect(sceneOf("v1")).toBe("wavefield");
+    expect(useAudioStore.getState().draft?.sceneId).toBe("mystify");
+    expect(activeScene()).toBe("mystify");
+  });
+
+  it("adding a voice while 'You' is selected does not change You's screensaver", async () => {
+    const user = userEvent.setup();
+    useAudioStore.setState({
+      conversions: [
+        { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "wavefield", palette },
+      ],
+      selectedTakeId: ORIGINAL_TAKE_ID, // viewing "You"…
+      originalScene: "nyan",
+    });
+    // "+ Add a voice" starts a draft for a new voice before the dialog opens (see page.tsx)
+    useAudioStore.getState().setDraftVoice("v2", "Narrator", palette);
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("button", { name: /MYSTIFY/ });
 
     await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
 
-    // v1 stays as it was; the new scene rides along to v2 only when it's transformed.
-    expect(useAudioStore.getState().conversions.find((c) => c.voiceId === "v1")?.sceneId).toBe(
-      "wavefield",
-    );
-    expect(useAudioStore.getState().activeScene).toBe("mystify");
+    expect(useAudioStore.getState().originalScene).toBe("nyan"); // You untouched
+    expect(sceneOf("v1")).toBe("wavefield"); // existing take untouched
+    expect(useAudioStore.getState().draft?.sceneId).toBe("mystify"); // rides on the draft
   });
 
-  it("restores a voice's own scene when you switch to it (no leak across voices)", async () => {
+  it("changing a voice filter leaves the chosen screensaver alone", async () => {
     const user = userEvent.setup();
-    const palette = ["#111", "#222", "#333"] as [string, string, string];
-    useAudioStore.setState({
-      conversions: [
-        { voiceId: "v2", voiceName: "Narrator", url: "/b.mp3", sceneId: "starfield", palette },
-      ],
-      activeScene: "wavefield",
-    });
-    render(<FilterPicker />);
-    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+    useAudioStore.setState({ originalScene: "starfield" }); // the user deliberately picked Starfield
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("option", { name: "female" });
 
-    // Switching to v2 (female) via the filter must restore v2's saved scene, not keep the last one.
     await user.selectOptions(screen.getByRole("combobox", { name: /Gender/i }), "female");
 
-    expect(useAudioStore.getState().activeScene).toBe("starfield");
+    expect(draftVoiceId()).toBe("v2"); // the voice changed…
+    expect(activeScene()).toBe("starfield"); // …the screensaver did not
+  });
+
+  it("a new recording captures the on-screen scene as the 'You' scene", () => {
+    useAudioStore.setState({
+      conversions: [
+        { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "starfield", palette },
+      ],
+      selectedTakeId: "v1", // Starfield is on screen while recording
+      originalScene: "nyan",
+    });
+    useAudioStore.getState().setRecordedBlob(new Blob(["x"], { type: "audio/webm" }));
+    expect(useAudioStore.getState().originalScene).toBe("starfield");
+    expect(useAudioStore.getState().selectedTakeId).toBe(ORIGINAL_TAKE_ID);
+  });
+
+  it("editing the screensaver with no voice targeted re-skins 'You', not a voice take", async () => {
+    const user = userEvent.setup();
+    useAudioStore.setState({
+      selectedTakeId: ORIGINAL_TAKE_ID, // "You" selected → no transform target
+      originalScene: "nyan",
+      conversions: [
+        { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "starfield", palette },
+      ],
+    });
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("button", { name: /MYSTIFY/ });
+
+    await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
+
+    expect(useAudioStore.getState().originalScene).toBe("mystify"); // You's own scene updated
+    expect(sceneOf("v1")).toBe("starfield"); // the voice take is untouched
   });
 
   it("a slider updates voiceSettings", async () => {
-    render(<FilterPicker />);
+    renderWithClient(<FilterPicker />);
     const stability = await screen.findByRole("slider", { name: /Stability/ });
     fireEvent.change(stability, { target: { value: "0.8" } });
     expect(useAudioStore.getState().voiceSettings.stability).toBe(0.8);
   });
 
-  it("disables Apply with no changes, enables it once a setting changes (no recording needed)", async () => {
-    render(<FilterPicker />);
-    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+  it("disables Apply without a recording", async () => {
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("option", { name: "female" });
     expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  });
 
-    fireEvent.change(screen.getByRole("slider", { name: /Stability/ }), {
-      target: { value: "0.8" },
-    });
-
+  it("after recording, defaults a target voice so Apply is ready", async () => {
+    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }) });
+    renderWithClient(<FilterPicker />);
+    await waitFor(() => expect(draftVoiceId()).toBe("v1"));
     expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
   });
 
-  it("Apply transforms with the chosen voice + settings and stores the converted URL", async () => {
+  it("Apply transforms with the chosen voice + settings and stores the converted take", async () => {
     const user = userEvent.setup();
     useAudioStore.setState({
       recordedBlob: new Blob(["rec"], { type: "audio/webm" }),
       voiceSettings: { stability: 0.7, similarity_boost: 0.9, style: 0.2 },
-      dirty: true,
     });
-    render(<FilterPicker />);
-    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+    renderWithClient(<FilterPicker />);
+    await waitFor(() => expect(draftVoiceId()).toBe("v1"));
 
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
@@ -205,7 +260,7 @@ describe("FilterPicker", () => {
       voiceId: "v1",
       voiceName: "Robotic",
       url: "/api/audio/out.mp3",
-      sceneId: "wavefield",
+      sceneId: "wavefield", // the draft scene, seeded from the on-screen "You" scene
     });
     const body = transformInit?.body as FormData;
     expect(body.get("targetVoiceId")).toBe("v1");
@@ -214,7 +269,7 @@ describe("FilterPicker", () => {
 
   it("shows a friendly message on quota errors", async () => {
     const user = userEvent.setup();
-    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }), dirty: true });
+    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }) });
     transformResponse = () =>
       new Response(
         JSON.stringify({
@@ -223,8 +278,8 @@ describe("FilterPicker", () => {
         }),
         { status: 500 },
       );
-    render(<FilterPicker />);
-    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+    renderWithClient(<FilterPicker />);
+    await waitFor(() => expect(draftVoiceId()).toBe("v1"));
 
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
@@ -234,9 +289,9 @@ describe("FilterPicker", () => {
   it("closes the dialog via onApplied when Apply is clicked", async () => {
     const user = userEvent.setup();
     const onApplied = vi.fn();
-    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }), dirty: true });
-    render(<FilterPicker onApplied={onApplied} />);
-    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }) });
+    renderWithClient(<FilterPicker onApplied={onApplied} />);
+    await waitFor(() => expect(draftVoiceId()).toBe("v1"));
 
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
@@ -245,7 +300,7 @@ describe("FilterPicker", () => {
 
   it("toggles the CRT effect", async () => {
     const user = userEvent.setup();
-    render(<FilterPicker />);
+    renderWithClient(<FilterPicker />);
     const checkbox = await screen.findByRole("checkbox", { name: /CRT/ });
     expect(checkbox).toBeChecked();
     await user.click(checkbox);
@@ -254,7 +309,7 @@ describe("FilterPicker", () => {
 
   it("toggles sounds", async () => {
     const user = userEvent.setup();
-    render(<FilterPicker />);
+    renderWithClient(<FilterPicker />);
     const checkbox = await screen.findByRole("checkbox", { name: /sounds/i });
     expect(checkbox).toBeChecked();
     await user.click(checkbox);
@@ -263,8 +318,8 @@ describe("FilterPicker", () => {
 
   it("shows the free-trial counter and unlocks with a valid access code", async () => {
     const user = userEvent.setup();
-    render(<FilterPicker />);
-    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("option", { name: "female" });
 
     expect(screen.getByText("Free voices left: 2 / 2")).toBeInTheDocument();
 
@@ -277,8 +332,8 @@ describe("FilterPicker", () => {
 
   it("lets a visitor save their own ElevenLabs key", async () => {
     const user = userEvent.setup();
-    render(<FilterPicker />);
-    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("option", { name: "female" });
 
     await user.type(screen.getByLabelText("ElevenLabs API key"), "xi-mine");
     await user.click(screen.getByRole("button", { name: "Save key" }));

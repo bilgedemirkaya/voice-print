@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { SceneId } from "@/lib/store/audioStore";
+import type { SceneId } from "@/lib/types";
 import { Mystify } from "./Mystify";
 import { Starfield } from "./Starfield";
 import { Nyan } from "./Nyan";

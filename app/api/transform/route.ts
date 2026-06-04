@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { speechToSpeech, type VoiceSettings } from "@/lib/elevenlabs";
 import { writeAudio } from "@/lib/store/audioFiles";
-import { ACCESS_CODE_HEADER, BYOK_HEADER, FREE_TRIAL_LIMIT, TRIAL_COOKIE } from "@/lib/trialConfig";
+import { FREE_TRIAL_LIMIT, TRIAL_COOKIE } from "@/lib/trialConfig";
 import { readTrialFromRequest, signTrialCount } from "@/lib/trial";
 import { bumpIp, isIpRateLimited } from "@/lib/trialIp";
-import { isLocalDev, isValidAccessCode } from "@/lib/access";
+import { resolveAccess } from "@/lib/access";
 
 const TRIAL_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
@@ -14,11 +14,7 @@ const TRIAL_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 // optional per-IP backstop) applies.
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    const userKey = request.headers.get(BYOK_HEADER)?.trim() || undefined;
-    // Local dev always uses the host key — ignore any stray BYOK header left in the browser.
-    const local = isLocalDev();
-    const codeUnlock = local || isValidAccessCode(request.headers.get(ACCESS_CODE_HEADER));
-    const bypassTrial = codeUnlock || Boolean(userKey);
+    const { local, userKey, bypassTrial } = resolveAccess(request);
 
     const form = await request.formData();
     const audio = form.get("audio");

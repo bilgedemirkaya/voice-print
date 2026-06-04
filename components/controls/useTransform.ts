@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback } from "react";
-import { useAudioStore } from "@/lib/store/audioStore";
+import { useIsMutating, useMutation } from "@tanstack/react-query";
+import { ORIGINAL_TAKE_ID, selectActiveScene, useAudioStore } from "@/lib/store/audioStore";
 import { sfx } from "@/lib/sfx";
-import { voicePaletteForLabels } from "@/lib/voicePalette";
 import { ACCESS_CODE_HEADER, BYOK_HEADER } from "@/lib/trialConfig";
+
+const TRANSFORM_KEY = ["transform"] as const;
 
 /** Turn ElevenLabs' raw error JSON into a short, friendly message. */
 function friendlyError(message: string): string {
@@ -24,54 +26,71 @@ function friendlyError(message: string): string {
   return message;
 }
 
+type TransformResult = { resultHandle?: string; error?: string; remaining?: number | null };
+
 /**
- * Shared transform action: POST the recorded clip + chosen voice/settings to /api/transform,
- * then point the store at the converted clip so the Recorder plays it through the analyser.
+ * Apply action: POST the recorded clip + chosen voice/settings to /api/transform, then store the
+ * converted take (with the scene/color chosen in the dialog). The Recorder selects + plays it.
+ *
+ * The *request* is a TanStack Query mutation (shared status via {@link useIsTransforming}); the
+ * *result* — a converted take — is session state, so it lands in the Zustand store. All store
+ * writes happen inside the mutation fn so they still run if the dialog (this hook) unmounts.
  */
 export function useTransform() {
-  return useCallback(async () => {
-    const state = useAudioStore.getState();
-    const blob = state.recordedBlob;
-    if (!blob || !state.targetVoiceId || state.transforming) return;
+  const mutation = useMutation({
+    mutationKey: TRANSFORM_KEY,
+    mutationFn: async (): Promise<void> => {
+      const s = useAudioStore.getState();
+      const blob = s.recordedBlob;
+      // The take to (re)convert: the draft's voice when composing, else the selected voice take.
+      const targetVoiceId =
+        s.draft?.voiceId ?? (s.selectedTakeId !== ORIGINAL_TAKE_ID ? s.selectedTakeId : "");
+      if (!blob || !targetVoiceId) return;
 
-    state.setTransforming(true);
-    state.setTransformError(null);
-    try {
-      const form = new FormData();
-      form.append("audio", blob, "recording.webm");
-      form.append("targetVoiceId", state.targetVoiceId);
-      form.append("settings", JSON.stringify(state.voiceSettings));
+      s.setTransformError(null);
+      try {
+        const form = new FormData();
+        form.append("audio", blob, "recording.webm");
+        form.append("targetVoiceId", targetVoiceId);
+        form.append("settings", JSON.stringify(s.voiceSettings));
 
-      const headers: Record<string, string> = {};
-      if (state.accessCode) headers[ACCESS_CODE_HEADER] = state.accessCode;
-      if (state.userApiKey) headers[BYOK_HEADER] = state.userApiKey;
-      const res = await fetch("/api/transform", {
-        method: "POST",
-        body: form,
-        headers: Object.keys(headers).length > 0 ? headers : undefined,
-      });
-      const data = (await res.json()) as {
-        resultHandle?: string;
-        error?: string;
-        remaining?: number | null;
-      };
-      // Reflect the server's authoritative free-transform count (null = own key / unknown).
-      if (data.remaining !== undefined) state.setTrialRemaining(data.remaining);
-      if (!res.ok || !data.resultHandle) throw new Error(data.error ?? "Transform failed");
+        const headers: Record<string, string> = {};
+        if (s.accessCode) headers[ACCESS_CODE_HEADER] = s.accessCode;
+        if (s.userApiKey) headers[BYOK_HEADER] = s.userApiKey;
 
-      const voice = state.voices.find((v) => v.id === state.targetVoiceId);
-      state.addConversion({
-        voiceId: state.targetVoiceId,
-        voiceName: voice?.name ?? state.targetVoiceId,
-        url: `/api/audio/${data.resultHandle}`,
-        sceneId: state.activeScene,
-        palette: voice ? voicePaletteForLabels(voice.labels) : state.params.palette,
-      });
-    } catch (err) {
-      state.setTransformError(friendlyError(err instanceof Error ? err.message : "Transform failed"));
-      sfx.error();
-    } finally {
-      state.setTransforming(false);
-    }
-  }, []);
+        const res = await fetch("/api/transform", {
+          method: "POST",
+          body: form,
+          headers: Object.keys(headers).length > 0 ? headers : undefined,
+        });
+        const data = (await res.json()) as TransformResult;
+        // Reflect the server's authoritative free-transform count (null = own key / unknown).
+        if (data.remaining !== undefined) s.setTrialRemaining(data.remaining);
+        if (!res.ok || !data.resultHandle) throw new Error(data.error ?? "Transform failed");
+
+        const voiceName =
+          s.draft?.voiceName ??
+          s.conversions.find((c) => c.voiceId === targetVoiceId)?.voiceName ??
+          targetVoiceId;
+        s.addConversion({
+          voiceId: targetVoiceId,
+          voiceName,
+          url: `/api/audio/${data.resultHandle}`,
+          sceneId: selectActiveScene(s),
+          palette: s.voicePalette ?? s.params.palette,
+        });
+        s.setDirty(false);
+      } catch (err) {
+        s.setTransformError(friendlyError(err instanceof Error ? err.message : "Transform failed"));
+        sfx.error();
+      }
+    },
+  });
+
+  return useCallback(() => mutation.mutate(), [mutation]);
+}
+
+/** Whether a transform is in flight — shared across components via the mutation key. */
+export function useIsTransforming(): boolean {
+  return useIsMutating({ mutationKey: TRANSFORM_KEY }) > 0;
 }
