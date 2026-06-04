@@ -3,6 +3,12 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 
+// jsdom doesn't implement object URLs; a transform creates one for the converted clip.
+if (typeof URL !== "undefined" && !URL.createObjectURL) {
+  URL.createObjectURL = () => "blob:mock";
+  URL.revokeObjectURL = () => undefined;
+}
+
 // jsdom-only: Framer Motion's useReducedMotion needs matchMedia. Guarded so node-env
 // test files (// @vitest-environment node) can share this setup file without crashing.
 if (typeof window !== "undefined" && !window.matchMedia) {

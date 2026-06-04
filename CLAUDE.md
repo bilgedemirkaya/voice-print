@@ -83,7 +83,7 @@ Two layers with a clean boundary; secrets stay server-side.
 │  - holds the ElevenLabs key                  │
 │  - enforces access (local / trial / code / BYOK)│
 │  - calls ElevenLabs (lib/elevenlabs.ts)      │
-│  - audio temp storage, served by handle      │
+│  - streams converted audio back (no storage) │
 └───────────────┬─────────────────────────────┘
                 │ REST
                 ▼
@@ -92,7 +92,7 @@ Two layers with a clean boundary; secrets stay server-side.
 
 **Why this shape:** the browser never sees an API key and never calls ElevenLabs directly — every call goes through the Next.js server, which also enforces the access model. The key lives in server env only.
 
-**Audio data, not blobs:** converted audio is written to a temp store (local disk in dev, blob storage in prod) and served from a Next.js route by **handle/URL + metadata** — never shuttled around as multi-MB base64.
+**Audio data:** the converted clip is **streamed straight back** to the browser from `/api/transform` (binary body; trial metadata in response headers), which makes an object URL to play it. It is never persisted server-side and never base64-encoded — so the app runs anywhere, including serverless/Vercel.
 
 ---
 
@@ -156,11 +156,10 @@ ElevenLabs is wrapped in `lib/elevenlabs.ts` (server-only) and called from API r
 | Route | Purpose |
 |---|---|
 | `GET /api/voices` | List voices for the filter picker. |
-| `POST /api/transform` | Convert recorded audio → `{ resultHandle, durationMs, voiceId, remaining }`. |
-| `GET /api/audio/[handle]` | Serve converted audio by handle. |
+| `POST /api/transform` | Convert recorded audio → **streams the converted clip back** (binary body; `X-Voice-Id` / `X-Duration-Ms` / `X-Trial-Remaining` headers). |
 | `POST /api/access` | Validate a friend's access code (never echoes the real one). |
 
-Routes return audio **handles**, never raw audio.
+The converted audio is returned in the response body and never stored server-side — the browser plays it via an object URL.
 
 **Access model** (so a public demo doesn't drain one account): local dev is unlimited; otherwise a signed-cookie **free trial** (with an optional per-IP Upstash backstop) applies, until a visitor enters the shared **access code** (`ACCESS_CODE` env, never committed) or brings their **own ElevenLabs key** (sent per-request, never stored). See `lib/trial.ts`, `lib/trialIp.ts`, `lib/access.ts`.
 
@@ -171,8 +170,7 @@ Routes return audio **handles**, never raw audio.
 ```
 /app                      Next.js App Router
   /api
-    /audio/[handle]       serve converted audio by handle (GET)
-    /transform            upload → ElevenLabs → result handle (POST)
+    /transform            upload → ElevenLabs → stream converted audio back (POST)
     /voices               list voices (GET)
     /access               validate the access code (POST)
   page.tsx                the "desktop" entry (served at /)
@@ -183,7 +181,7 @@ Routes return audio **handles**, never raw audio.
   /controls               recorder, filter picker, sliders, export, useTransform (transform mutation)
 /lib
   /audio                  analyser, feature extraction, params mapping
-  /store                  zustand store (working session) + audio handle store
+  /store                  zustand store (working session)
   types.ts                shared domain types (SceneId, Voice, VoiceSettings, Conversion, VoiceDraft)
   queries.ts              TanStack Query hooks (useVoices, useSubmitAccessCode)
   elevenlabs.ts           server-side ElevenLabs client (voices + speech-to-speech)
@@ -245,7 +243,7 @@ The bar to clear: a designer should look at it and believe it was deliberately a
 1. **Skeleton** — Next.js + TS + Tailwind; retro Window/Button/TaskBar shells.
 2. **Record + analyze** — mic capture, `AnalyserNode`, feature extraction → `AnimationParams`. Prove it with a debug readout.
 3. **First scene** — Wavefield reacting live to the params.
-4. **Server integration** — `/api/voices` + `/api/transform` calling ElevenLabs server-side; return handles.
+4. **Server integration** — `/api/voices` + `/api/transform` calling ElevenLabs server-side; stream the converted clip back.
 5. **Wire the loop** — record → transform → fetch result → re-analyze → animation changes.
 6. **Filter picker UI** — the Screen Saver dialog; named presets ↔ voices/scenes.
 7. **Polish** — Mystify scene, CRT, transitions, reduced-motion, export.
@@ -258,7 +256,7 @@ A reviewer should find something impressive by milestone 5; everything after is 
 ## 13. Open decisions (flag, don't silently assume)
 
 - ~~**Real-time vs offline conversion**~~ — **RESOLVED: v1 is offline** (record → send to ElevenLabs → get converted clip back → play with live visualization; a normal request/response, still network-dependent). Real-time streaming STS is explicitly out of scope for v1; revisit only as a stretch goal.
-- **Where converted audio is stored** — local disk (dev) vs a blob store (prod). Affects the handle scheme.
+- ~~**Where converted audio is stored**~~ — **RESOLVED: not stored.** `/api/transform` streams the converted clip straight back in the response body and the browser plays it via an object URL. No disk/blob store, so it deploys to serverless hosts (Vercel) as well as a long-running server (Render), and the recording is never persisted.
 - ~~**Agent in scope or not**~~ — **RESOLVED: out of scope.** The Anthropic-driven NL agent layer and the `suggest_filter` tool have been removed; filter selection is via named presets only.
 - ~~**MCP server vs direct calls**~~ — **RESOLVED: direct calls.** With no LLM in the loop, the MCP server was indirection without a payoff, so it was removed; ElevenLabs is called directly from the Next.js server (`lib/elevenlabs.ts`). MCP exists to expose tools to an LLM host — not the right fit here.
 - **How many scenes ship** — two is enough to be impressive; four is the ceiling.

@@ -58,9 +58,11 @@ function resetStore() {
 beforeEach(() => {
   resetStore();
   transformInit = undefined;
+  // Success streams the converted audio back as the body, with trial info in headers.
   transformResponse = () =>
-    new Response(JSON.stringify({ resultHandle: "out.mp3", durationMs: 1000, voiceId: "v1" }), {
+    new Response(new Blob(["CONVERTED"], { type: "audio/mpeg" }), {
       status: 200,
+      headers: { "X-Voice-Id": "v1", "X-Trial-Remaining": "1" },
     });
   vi.stubGlobal(
     "fetch",
@@ -280,9 +282,10 @@ describe("FilterPicker", () => {
     expect(useAudioStore.getState().conversions[0]).toMatchObject({
       voiceId: "v1",
       voiceName: "Robotic",
-      url: "/api/audio/out.mp3",
+      url: "blob:mock", // the converted audio, played from an object URL (no server storage)
       sceneId: "wavefield", // the draft scene, seeded from the on-screen "You" scene
     });
+    expect(useAudioStore.getState().trialRemaining).toBe(1); // from the X-Trial-Remaining header
     const body = transformInit?.body as FormData;
     expect(body.get("targetVoiceId")).toBe("v1");
     expect(JSON.parse(String(body.get("settings")))).toMatchObject({ stability: 0.7 });

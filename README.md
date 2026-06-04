@@ -8,9 +8,7 @@ Stack up a few voices, each one remembers its own screensaver and identity, so f
 
 ## Demo
 
-<video src="https://github.com/bilgedemirkaya/voice-screen-saver/raw/main/voiceprint.webm" controls width="100%"></video>
-
-> 🔊 Player not showing (or viewing outside GitHub)? [**Watch the demo**](voiceprint.webm) — turn sound on; hearing the voice change as the visuals answer is the whole point.
+▶︎ **[Watch the demo — with sound](https://github.com/bilgedemirkaya/voice-screen-saver/blob/main/voiceprint.webm)** (hearing the voice change as the visuals answer is the whole point).
 
 ---
 
@@ -72,19 +70,37 @@ Browser (Next.js + react-three-fiber)
         │  HTTP (multipart upload)
 Next.js server (API routes)
   · holds the key, enforces access (local / trial / code / BYOK)
-  · calls ElevenLabs server-side, stores converted audio by handle
+  · calls ElevenLabs server-side, streams the converted clip straight back
         │  REST
 ElevenLabs (voice list + speech-to-speech)
 ```
 
-Converted audio is served back by **handle** (`/api/audio/[handle]`), never shuttled around as giant base64 blobs. All audio analysis (FFT → `AnimationParams`) is pure, client-side, and unit-tested.
+The converted audio is **streamed back in the response body** (the browser plays it via an object URL) — never stored on the server and never base64-shuttled, so it runs on serverless hosts too. All audio analysis (FFT → `AnimationParams`) is pure, client-side, and unit-tested.
 
+---
+
+## Deploy
+
+No server-side storage, so it runs on either a serverless host or a long-running server. Either way, set these env vars (see [`.env.example`](.env.example)):
+
+| Var | Required | Notes |
+|---|---|---|
+| `ELEVENLABS_API_KEY` | ✅ | The host key, server-side only. |
+| `TRIAL_COOKIE_SECRET` | ✅ (prod) | Long random value — signs the free-trial cookie so it can't be forged. |
+| `ACCESS_CODE` | optional | Shared unlock code for friends. |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | optional | Per-IP trial backstop. |
+| `CF_BEACON_TOKEN` | optional | Cookieless analytics. |
+
+- **Vercel** (recommended — free, no idle spin-down): import the repo, add the env vars, deploy. Next.js is auto-detected; `/api/transform` runs as a serverless function (`maxDuration` is set for the ElevenLabs round-trip).
+- **Render**: one-click via [`render.yaml`](render.yaml). Note the **free plan spins down on idle (~50s cold start)** — use a paid plan (or Vercel) for an always-warm demo.
+
+---
 
 ## Privacy
 
 - **Your microphone recording is never stored on our server.** It stays in your browser and is streamed straight to ElevenLabs for the transform, then dropped from memory — we never write it to disk.
 - **No accounts, no identity.** Usage is gated only by an anonymous signed cookie (the free-trial counter) and an optional per-IP count — never linked to who you are.
-- **Converted clips are transient.** The transformed audio sits in a temporary folder behind a random, unguessable handle just long enough to play it back, and is auto-deleted within an hour (and on every restart). Nothing is retained long-term.
+- **Converted clips aren't stored.** The transformed audio is streamed straight back to your browser and played from an in-memory object URL — the server never writes it to disk. Nothing is retained.
 - **Analytics, if enabled, are cookieless.** Optional Cloudflare Web Analytics counts aggregate visits — no cookies, no personal data, no cross-site tracking.
 - **Third party:** audio is processed by [ElevenLabs](https://elevenlabs.io) under their terms for the duration of the transform.
 

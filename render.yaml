@@ -1,5 +1,8 @@
 # Render Blueprint — deploy in one click: render.com → New → Blueprint → pick this repo.
-# Runs as a single long-running Node server, so the on-disk converted-audio store works as-is.
+# No server-side audio storage (the converted clip is streamed back to the browser), so the same
+# app also deploys to serverless hosts like Vercel — just set the same env vars there.
+# NOTE: Render's free plan spins down on idle (~50s cold start); use a paid plan or Vercel to keep
+# the demo always-warm.
 services:
   - type: web
     name: voiceprint-scr

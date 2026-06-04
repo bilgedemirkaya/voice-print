@@ -26,7 +26,13 @@ function friendlyError(message: string): string {
   return message;
 }
 
-type TransformResult = { resultHandle?: string; error?: string; remaining?: number | null };
+type TransformError = { error?: string; remaining?: number | null };
+
+/** Header value → trial count: "" means unlimited (null), a number is the remaining free tries. */
+function parseRemaining(header: string | null): number | null | undefined {
+  if (header === null) return undefined;
+  return header === "" ? null : Number(header);
+}
 
 /**
  * Apply action: POST the recorded clip + chosen voice/settings to /api/transform, then store the
@@ -63,10 +69,18 @@ export function useTransform() {
           body: form,
           headers: Object.keys(headers).length > 0 ? headers : undefined,
         });
-        const data = (await res.json()) as TransformResult;
-        // Reflect the server's authoritative free-transform count (null = own key / unknown).
-        if (data.remaining !== undefined) s.setTrialRemaining(data.remaining);
-        if (!res.ok || !data.resultHandle) throw new Error(data.error ?? "Transform failed");
+
+        if (!res.ok) {
+          // Errors come back as JSON (e.g. quota / trial-exhausted), which may carry a fresh count.
+          const data = (await res.json().catch(() => ({}))) as TransformError;
+          if (data.remaining !== undefined) s.setTrialRemaining(data.remaining);
+          throw new Error(data.error ?? "Transform failed");
+        }
+
+        // Success is the converted audio itself (no server-side storage); play it via an object URL.
+        const remaining = parseRemaining(res.headers.get("X-Trial-Remaining"));
+        if (remaining !== undefined) s.setTrialRemaining(remaining);
+        const url = URL.createObjectURL(await res.blob());
 
         const voiceName =
           s.draft?.voiceName ??
@@ -75,7 +89,7 @@ export function useTransform() {
         s.addConversion({
           voiceId: targetVoiceId,
           voiceName,
-          url: `/api/audio/${data.resultHandle}`,
+          url,
           sceneId: selectActiveScene(s),
           palette: s.voicePalette ?? s.params.palette,
         });

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { speechToSpeech, type VoiceSettings } from "@/lib/elevenlabs";
-import { writeAudio } from "@/lib/store/audioFiles";
 import { FREE_TRIAL_LIMIT, TRIAL_COOKIE } from "@/lib/trialConfig";
 import { readTrialFromRequest, signTrialCount } from "@/lib/trial";
 import { bumpIp, isIpRateLimited } from "@/lib/trialIp";
 import { resolveAccess } from "@/lib/access";
+
+// Calls ElevenLabs server-side; needs the Node runtime (Buffer/crypto) and room for the round-trip.
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const TRIAL_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
@@ -71,12 +74,22 @@ export async function POST(request: Request): Promise<NextResponse> {
       settings,
       apiKey: local ? undefined : userKey,
     });
-    const resultHandle = await writeAudio(converted.audio, "mp3");
-    const result = { resultHandle, durationMs: converted.durationMsApprox, voiceId: targetVoiceId };
 
-    // Count this transform only now that it succeeded; failures don't burn a free try.
+    // Stream the converted audio straight back to the browser — no server-side storage, so this
+    // runs anywhere (incl. serverless/Vercel) and the recording is never persisted. Trial metadata
+    // rides in headers (null remaining = unlimited: own key / valid code / local).
     const remaining = bypassTrial ? null : Math.max(0, FREE_TRIAL_LIMIT - (used + 1));
-    const response = NextResponse.json({ ...result, remaining, unlimited: bypassTrial });
+    const response = new NextResponse(new Uint8Array(converted.audio), {
+      status: 200,
+      headers: {
+        "Content-Type": converted.contentType || "audio/mpeg",
+        "Cache-Control": "no-store",
+        "X-Voice-Id": targetVoiceId,
+        "X-Duration-Ms": String(converted.durationMsApprox ?? ""),
+        "X-Trial-Remaining": remaining === null ? "" : String(remaining),
+      },
+    });
+    // Count this transform only now that it succeeded; failures don't burn a free try.
     if (!bypassTrial) {
       await bumpIp(request);
       response.cookies.set(TRIAL_COOKIE, signTrialCount(used + 1), {
