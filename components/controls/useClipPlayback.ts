@@ -34,7 +34,7 @@ export function useClipPlayback({
   const setParams = useAudioStore((s) => s.setParams);
   const setPlayingLabel = useAudioStore((s) => s.setPlayingLabel);
 
-  // Build the playback graph once: element → destination (audible) + analyser + a stream tap so
+  // Build the playback graph once: element → analyser → destination (audible) + a stream tap so
   // export can mux the audio into the recorded clip.
   const ensureGraph = useCallback((): AudioContext | null => {
     const element = audioRef.current;
@@ -42,14 +42,19 @@ export function useClipPlayback({
     const context = ensureContext();
     if (!elementSourceRef.current) {
       elementSourceRef.current = context.createMediaElementSource(element);
-      elementSourceRef.current.connect(context.destination);
+    }
+    if (!analyserRef.current) {
+      const tap = createAudioAnalyser(context, elementSourceRef.current, setParams);
+      // Route the audible path *through* the analyser. A media-element source is only analysed
+      // when the analyser reaches the destination (Safari/WebKit returns zeros otherwise) — unlike
+      // a live mic stream, which is analysed regardless. This is why recording reacted but
+      // playback didn't.
+      tap.analyser.connect(context.destination);
+      analyserRef.current = tap;
     }
     if (!streamDestRef.current) {
       streamDestRef.current = context.createMediaStreamDestination();
       elementSourceRef.current.connect(streamDestRef.current);
-    }
-    if (!analyserRef.current) {
-      analyserRef.current = createAudioAnalyser(context, elementSourceRef.current, setParams);
     }
     return context;
   }, [ensureContext, setParams]);

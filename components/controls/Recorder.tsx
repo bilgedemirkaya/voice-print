@@ -190,7 +190,7 @@ export function Recorder({
         </span>
       </div>
 
-      {(status === "recording" || isPlaying) && <VuMeter />}
+      {status === "recording" && <VuMeter />}
       {micError && <p className="text-[#b00020]">{micError}</p>}
       {transforming && <p className="text-w95-darkgray">Transforming…</p>}
       {transformError && <p className="text-[#b00020]">{transformError}</p>}
@@ -293,10 +293,12 @@ export function Recorder({
               </div>
             </div>
           )}
-
-          <audio ref={audioRef} src={currentUrl ?? undefined} className="hidden" {...audioProps} />
         </div>
       )}
+
+      {/* Mounted for the component's lifetime so its Web Audio source node is created exactly once
+          (re-creating it per take would leave the analyser tapping a detached element). */}
+      <audio ref={audioRef} src={currentUrl ?? undefined} className="hidden" {...audioProps} />
     </div>
 
       <Dialog open={confirmingReset} title="Start over" onClose={() => setConfirmingReset(false)}>

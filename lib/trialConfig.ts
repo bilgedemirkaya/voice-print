@@ -1,5 +1,5 @@
 /** Free voice transforms a new visitor gets on the shared key before bring-your-own-key. */
-export const FREE_TRIAL_LIMIT = 2;
+export const FREE_TRIAL_LIMIT = 3;
 
 /** Name of the signed cookie tracking how many free transforms a visitor has used. */
 export const TRIAL_COOKIE = "vp_trial";

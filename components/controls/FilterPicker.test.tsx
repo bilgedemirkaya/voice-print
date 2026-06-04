@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { ORIGINAL_TAKE_ID, selectActiveScene, useAudioStore } from "@/lib/store/audioStore";
 import { DEFAULT_VOICE_SETTINGS } from "@/lib/types";
+import { FREE_TRIAL_LIMIT } from "@/lib/trialConfig";
 
 // Avoid pulling next/dynamic + three into the test; we only need the scene metadata.
 vi.mock("@/components/scenes/registry", () => ({
@@ -341,7 +342,9 @@ describe("FilterPicker", () => {
     renderWithClient(<FilterPicker />);
     await screen.findByRole("option", { name: "female" });
 
-    expect(screen.getByText("Free voices left: 2 / 2")).toBeInTheDocument();
+    expect(
+      screen.getByText(`Free voices left: ${FREE_TRIAL_LIMIT} / ${FREE_TRIAL_LIMIT}`),
+    ).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Access code"), "GOODCODE");
     await user.click(screen.getByRole("button", { name: "Unlock" }));

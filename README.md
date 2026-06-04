@@ -6,6 +6,12 @@ Open **Display Properties → Screen Saver** dialog and dial in a *vibe*; gender
 
 Stack up a few voices, each one remembers its own screensaver and identity, so flipping between them flips the entire mood. When you found the one, **export it as a shareable "voiceprint"**; a video with sound, or a GIF.
 
+## Demo
+
+<video src="https://github.com/bilgedemirkaya/voice-screen-saver/raw/main/voiceprint.webm" controls width="100%"></video>
+
+> 🔊 Player not showing (or viewing outside GitHub)? [**Watch the demo**](voiceprint.webm) — turn sound on; hearing the voice change as the visuals answer is the whole point.
+
 ---
 
 ## Quick start
