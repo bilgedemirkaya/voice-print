@@ -181,6 +181,26 @@ describe("FilterPicker", () => {
     expect(useAudioStore.getState().draft?.sceneId).toBe("mystify"); // rides on the draft
   });
 
+  it("a voice filter never changes the screensaver, even when it lands on the selected take's voice", async () => {
+    const user = userEvent.setup();
+    useAudioStore.setState({
+      conversions: [
+        { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "nyan", palette },
+      ],
+      selectedTakeId: "v1", // a male take whose own scene is Nyan…
+      draft: { voiceId: "v2", voiceName: "Narrator", sceneId: "mystify", palette }, // …composing v2 w/ Mystify
+    });
+    renderWithClient(<FilterPicker />);
+    await screen.findByRole("option", { name: "male" });
+
+    // Switching gender → male jumps off v2 and lands on v1 (the selected take's own voice).
+    await user.selectOptions(screen.getByRole("combobox", { name: /Gender/i }), "male");
+
+    expect(draftVoiceId()).toBe("v1"); // the voice followed the filter…
+    expect(activeScene()).toBe("mystify"); // …but the screensaver stayed put (not v1's Nyan)
+    expect(sceneOf("v1")).toBe("nyan"); // and the existing take is untouched
+  });
+
   it("changing a voice filter leaves the chosen screensaver alone", async () => {
     const user = userEvent.setup();
     useAudioStore.setState({ originalScene: "starfield" }); // the user deliberately picked Starfield

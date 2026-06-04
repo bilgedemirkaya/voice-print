@@ -38,7 +38,6 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const activeScene = useAudioStore(selectActiveScene);
   const setEditingScene = useAudioStore((s) => s.setEditingScene);
   const setDraftVoice = useAudioStore((s) => s.setDraftVoice);
-  const clearDraft = useAudioStore((s) => s.clearDraft);
   const draft = useAudioStore((s) => s.draft);
   const selectedTakeId = useAudioStore((s) => s.selectedTakeId);
   const conversions = useAudioStore((s) => s.conversions);
@@ -105,16 +104,12 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
       ),
     ).sort();
 
-  // Picking a voice sets only the target + its color preview. It must NOT touch any existing
-  // take's screensaver — a different voice composes a draft; re-picking the selected take edits it.
+  // Picking a voice (or a filter jumping to one) composes a draft, seeding its scene from what's on
+  // screen. Changing the voice therefore only updates the target + its colors — never the
+  // screensaver, which changes solely when you click one in the list.
   const applyVoice = (id: string): void => {
     const voice = voices.find((v) => v.id === id);
-    if (id === selectedTakeId && id !== ORIGINAL_TAKE_ID) {
-      clearDraft();
-      setDirty(true);
-    } else {
-      setDraftVoice(id, voice?.name ?? id, voice ? voicePaletteForLabels(voice.labels) : null);
-    }
+    setDraftVoice(id, voice?.name ?? id, voice ? voicePaletteForLabels(voice.labels) : null);
   };
 
   const onFilterChange = (key: string, value: string): void => {

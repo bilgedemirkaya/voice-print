@@ -58,8 +58,6 @@ type AudioState = {
   setEditingScene: (scene: SceneId) => void;
   /** Begin (or retarget) composing a new voice; its scene starts from what's on screen. */
   setDraftVoice: (voiceId: string, voiceName: string, palette: Palette | null) => void;
-  /** Discard the draft and fall back to editing the selected take. */
-  clearDraft: () => void;
   /** Insert or replace a converted take (used on transform success). */
   addConversion: (conversion: Conversion) => void;
   /** Discard the recording + all takes and return to a clean slate (keeps display + access prefs). */
@@ -161,9 +159,6 @@ export const useAudioStore = create<AudioState>()((set) => ({
       voicePalette: palette,
       dirty: true,
     })),
-
-  clearDraft: () =>
-    set((s) => ({ draft: null, voicePalette: paletteForTake(s, s.selectedTakeId) })),
 
   addConversion: (conversion) =>
     set((s) => {
