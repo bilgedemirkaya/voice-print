@@ -4,7 +4,7 @@ Record yourself, say a sentence, and a WebGL **screensaver springs to life, driv
 
 Open **Display Properties → Screen Saver** dialog and dial in a *vibe*; gender, age, accent, mood. Behind the scenes that picks a real ElevenLabs voice and **transforms your recording through it.** Depending on the pick, the screensaver **visibly transforms too**: new palette, new energy, a different waveform shape. You *hear* a new voice and *see* the visuals answer at the same instant.
 
-Stack up a few voices, each one remembers its own screensaver and identity, so flipping between them flips the entire mood. When you found the one, **export it as a shareable "voiceprint"** — a video with sound, or a GIF.
+Stack up a few voices, each one remembers its own screensaver and identity, so flipping between them flips the entire mood. When you found the one, **export it as a shareable "voiceprint"**; a video with sound, or a GIF.
 
 ---
 
@@ -23,8 +23,6 @@ cp .env.example .env.local
 # 3. go
 pnpm dev
 ```
-
-Open **http://localhost:3000** and you'll boot straight into the desktop.
 
 > You need ElevenLabs to use voice transform feature on local. Grab a free key at [elevenlabs.io](https://elevenlabs.io).
 

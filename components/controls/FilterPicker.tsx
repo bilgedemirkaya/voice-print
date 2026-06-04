@@ -32,7 +32,6 @@ const VOICE_FILTERS: Array<{ key: string; label: string }> = [
 export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const activeScene = useAudioStore((s) => s.activeScene);
   const setActiveScene = useAudioStore((s) => s.setActiveScene);
-  const selectedSource = useAudioStore((s) => s.selectedSource);
   const setConversionScene = useAudioStore((s) => s.setConversionScene);
   const setVoicePalette = useAudioStore((s) => s.setVoicePalette);
   const targetVoiceId = useAudioStore((s) => s.targetVoiceId);
@@ -48,6 +47,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const dirty = useAudioStore((s) => s.dirty);
   const setDirty = useAudioStore((s) => s.setDirty);
   const voices = useAudioStore((s) => s.voices);
+  const conversions = useAudioStore((s) => s.conversions);
   const voicesError = useAudioStore((s) => s.voicesError);
   const loadVoices = useAudioStore((s) => s.loadVoices);
   const accessCode = useAudioStore((s) => s.accessCode);
@@ -114,6 +114,10 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
     setDirty(true);
     const voice = voices.find((v) => v.id === id);
     if (voice) setVoicePalette(voicePaletteForLabels(voice.labels));
+    // Show THIS voice's own scene (its saved one, or the default for a voice not yet converted), so
+    // the scene the next transform captures belongs to this voice — not whatever was last picked.
+    const conv = conversions.find((c) => c.voiceId === id);
+    setActiveScene(conv ? conv.sceneId : "nyan");
   };
 
   const onFilterChange = (key: string, value: string): void => {
@@ -173,10 +177,10 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
                 onClick={() => {
                   if (scene.id !== activeScene) {
                     setActiveScene(scene.id);
-                    // Re-skin in place only when editing the selected take itself. Configuring a
-                    // new/other voice must not overwrite the previously-selected take's scene — it
-                    // just sets the scene the next transform will capture.
-                    if (selectedSource === targetVoiceId) setConversionScene(selectedSource, scene.id);
+                    // Re-skin the voice this dialog is editing (the one shown in "→ voice name").
+                    // No-op for a voice with no conversion yet — that scene is captured at transform
+                    // time — so picking a screensaver for a new voice never touches existing takes.
+                    setConversionScene(targetVoiceId, scene.id);
                   }
                 }}
                 className={cn(

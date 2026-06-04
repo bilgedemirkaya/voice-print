@@ -151,6 +151,24 @@ describe("FilterPicker", () => {
     expect(useAudioStore.getState().activeScene).toBe("mystify");
   });
 
+  it("restores a voice's own scene when you switch to it (no leak across voices)", async () => {
+    const user = userEvent.setup();
+    const palette = ["#111", "#222", "#333"] as [string, string, string];
+    useAudioStore.setState({
+      conversions: [
+        { voiceId: "v2", voiceName: "Narrator", url: "/b.mp3", sceneId: "starfield", palette },
+      ],
+      activeScene: "wavefield",
+    });
+    render(<FilterPicker />);
+    await waitFor(() => expect(useAudioStore.getState().targetVoiceId).toBe("v1"));
+
+    // Switching to v2 (female) via the filter must restore v2's saved scene, not keep the last one.
+    await user.selectOptions(screen.getByRole("combobox", { name: /Gender/i }), "female");
+
+    expect(useAudioStore.getState().activeScene).toBe("starfield");
+  });
+
   it("a slider updates voiceSettings", async () => {
     render(<FilterPicker />);
     const stability = await screen.findByRole("slider", { name: /Stability/ });
