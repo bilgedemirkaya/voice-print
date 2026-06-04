@@ -95,7 +95,7 @@ type AudioState = {
 /** Single source of truth for live audio-reactive state + filter selection (CLAUDE.md §3). */
 export const useAudioStore = create<AudioState>()((set, get) => ({
   params: silentParams(),
-  activeScene: "wavefield",
+  activeScene: "nyan",
   targetVoiceId: "",
   voiceSettings: DEFAULT_VOICE_SETTINGS,
   recordedBlob: null,

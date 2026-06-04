@@ -118,6 +118,26 @@ All of these go in `.env.local` (gitignored) and are read **server-side only** (
 
 ---
 
+## Deploy
+
+Deploy to **Render** (or Railway/Fly) — a single long-running Node server, so the on-disk converted-audio store works unchanged. There's a [`render.yaml`](render.yaml) blueprint: on render.com → **New → Blueprint → pick this repo**, then fill in `ELEVENLABS_API_KEY` and `ACCESS_CODE` (`TRIAL_COOKIE_SECRET` is auto-generated). Build `pnpm install && pnpm build`, start `pnpm start`, Node pinned by [`.node-version`](.node-version).
+
+> **Heads-up for serverless (Vercel/Netlify):** converted audio is written to local disk and fetched by handle in a *second* request — across ephemeral instances that file may be gone, so audio can 404. Use a long-running host, or switch `/api/transform` to return the audio inline first.
+
+Recordings are capped at **15s** (client-side) to keep ElevenLabs credit cost predictable and avoid transform timeouts.
+
+---
+
+## Privacy
+
+- **Your microphone recording is never stored on our server.** It stays in your browser and is streamed straight to ElevenLabs for the transform, then dropped from memory — we never write it to disk.
+- **No accounts, no identity.** Usage is gated only by an anonymous signed cookie (the free-trial counter) and an optional per-IP count — never linked to who you are.
+- **Converted clips are transient.** The transformed audio sits in a temporary folder behind a random, unguessable handle just long enough to play it back, and is auto-deleted within an hour (and on every restart). Nothing is retained long-term.
+- **Analytics, if enabled, are cookieless.** Optional Cloudflare Web Analytics counts aggregate visits — no cookies, no personal data, no cross-site tracking.
+- **Third party:** audio is processed by [ElevenLabs](https://elevenlabs.io) under their terms for the duration of the transform.
+
+---
+
 ## Project layout
 
 ```

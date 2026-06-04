@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -45,9 +45,29 @@ export function resolveHandle(handle: string): string {
   return path.join(audioStoreDir(), handle);
 }
 
+// Converted clips are transient — sweep anything older than this so nothing lingers on disk.
+const AUDIO_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+async function sweepOldAudio(dir: string): Promise<void> {
+  try {
+    const cutoff = Date.now() - AUDIO_TTL_MS;
+    const names = await readdir(dir);
+    await Promise.all(
+      names.map(async (name) => {
+        const file = path.join(dir, name);
+        const info = await stat(file).catch(() => null);
+        if (info && info.mtimeMs < cutoff) await rm(file, { force: true }).catch(() => undefined);
+      }),
+    );
+  } catch {
+    // best-effort cleanup; never block a request
+  }
+}
+
 export async function writeAudio(data: Buffer, ext: string): Promise<string> {
   const dir = audioStoreDir();
   await mkdir(dir, { recursive: true });
+  void sweepOldAudio(dir); // fire-and-forget: keep the temp store from accumulating
   const handle = `${randomUUID()}.${ext}`;
   await writeFile(path.join(dir, handle), data);
   return handle;

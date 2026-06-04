@@ -19,6 +19,9 @@ const STATUS_LABEL: Record<Status, string> = {
   recorded: "Recorded",
 };
 
+// Cap recordings: keeps ElevenLabs credit cost predictable and avoids transform timeouts.
+const MAX_RECORD_MS = 15_000;
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
   const m = Math.floor(seconds / 60);
@@ -49,6 +52,7 @@ export function Recorder({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [recordSecondsLeft, setRecordSecondsLeft] = useState(0);
   const source = useAudioStore((s) => s.selectedSource); // "original" or a voiceId
   const setSource = useAudioStore((s) => s.setSelectedSource);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
@@ -67,6 +71,7 @@ export function Recorder({
   const primingRef = useRef(false);
   const pendingPlayRef = useRef(false);
   const lastConversionRef = useRef<string | null>(null);
+  const recordStartRef = useRef(0);
 
   const setParams = useAudioStore((s) => s.setParams);
   const setRecordedBlob = useAudioStore((s) => s.setRecordedBlob);
@@ -178,6 +183,8 @@ export function Recorder({
       };
       recorder.start();
       setStatus("recording");
+      recordStartRef.current = Date.now();
+      setRecordSecondsLeft(Math.ceil(MAX_RECORD_MS / 1000));
       sfx.record();
     } catch (err) {
       setMicError(err instanceof Error ? err.message : "Microphone access failed");
@@ -189,6 +196,17 @@ export function Recorder({
     recorderRef.current?.stop();
     sfx.stop();
   }, []);
+
+  // Tick the countdown while recording and auto-stop at the cap.
+  useEffect(() => {
+    if (status !== "recording") return;
+    const id = setInterval(() => {
+      const left = MAX_RECORD_MS - (Date.now() - recordStartRef.current);
+      if (left <= 0) stop();
+      else setRecordSecondsLeft(Math.ceil(left / 1000));
+    }, 250);
+    return () => clearInterval(id);
+  }, [status, stop]);
 
   // Build the playback graph once: element → destination (audible) + analyser + a stream tap so
   // export can mux the audio into the recorded clip.
@@ -348,7 +366,9 @@ export function Recorder({
             className="h-2 w-2 shrink-0 rounded-full bg-[#e53935] motion-safe:animate-pulse"
           />
         )}
-        <span className="text-w95-darkgray">{STATUS_LABEL[status]}</span>
+        <span className="text-w95-darkgray">
+          {status === "recording" ? `Recording… ${recordSecondsLeft}s left` : STATUS_LABEL[status]}
+        </span>
       </div>
 
       {(status === "recording" || isPlaying) && <VuMeter />}
