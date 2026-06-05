@@ -2,6 +2,7 @@
   "name": "voiceprint",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "VOICEPRINT.SCR — retro-90s voice visualizer with ElevenLabs voice transformation.",
   "scripts": {
     "dev": "next dev",

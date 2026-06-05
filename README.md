@@ -1,5 +1,12 @@
 # VOICEPRINT.SCR
 
+![Next.js](https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Three.js](https://img.shields.io/badge/Three.js-000000?logo=threedotjs&logoColor=white)
+![Web Audio API](https://img.shields.io/badge/Web%20Audio%20API-FF5252?logo=javascript&logoColor=white)
+![ElevenLabs](https://img.shields.io/badge/ElevenLabs-000000?logo=elevenlabs&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-22c55e)
+
 Record yourself, say a sentence, and an axolotl or another WebGL **screensaver springs to life, driven entirely by your voice.** Depending on your voice, the colors run hot and the motion spikes or it cools down and settles.
 
 Open **Display Properties → Screen Saver** dialog and dial in a *vibe*; gender, age, accent, mood. Behind the scenes that picks a real ElevenLabs voice and **transforms your recording through it.** Depending on the pick, the screensaver **visibly transforms too**: new palette, new energy, a different waveform shape. You *hear* a new voice and *see* the visuals answer at the same instant.
@@ -92,3 +99,9 @@ The converted audio is **streamed back in the response body** (the browser plays
 ## Contributing
 
 Ideas, bug reports, and PRs are very welcome — **we're always open to new screensavers, UX polish, and improvements.** Open an issue and let's build it. See **[CONTRIBUTING.md](CONTRIBUTING.md)** to get started, it includes a quick "add a screensaver" walkthrough.
+
+---
+
+## License
+
+[MIT](LICENSE) © Bilge Demirkaya
