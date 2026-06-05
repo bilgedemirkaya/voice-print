@@ -170,7 +170,7 @@ describe("FilterPicker", () => {
         { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "wavefield", palette },
       ],
       selectedTakeId: ORIGINAL_TAKE_ID, // viewing "You"…
-      originalScene: "nyan",
+      originalScene: "axolotl",
     });
     // "+ Add a voice" starts a draft for a new voice before the dialog opens (see page.tsx)
     useAudioStore.getState().setDraftVoice("v2", "Narrator", palette);
@@ -179,7 +179,7 @@ describe("FilterPicker", () => {
 
     await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
 
-    expect(useAudioStore.getState().originalScene).toBe("nyan"); // You untouched
+    expect(useAudioStore.getState().originalScene).toBe("axolotl"); // You untouched
     expect(sceneOf("v1")).toBe("wavefield"); // existing take untouched
     expect(useAudioStore.getState().draft?.sceneId).toBe("mystify"); // rides on the draft
   });
@@ -188,9 +188,9 @@ describe("FilterPicker", () => {
     const user = userEvent.setup();
     useAudioStore.setState({
       conversions: [
-        { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "nyan", palette },
+        { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "axolotl", palette },
       ],
-      selectedTakeId: "v1", // a male take whose own scene is Nyan…
+      selectedTakeId: "v1", // a male take whose own scene is Axolotl…
       draft: { voiceId: "v2", voiceName: "Narrator", sceneId: "mystify", palette }, // …composing v2 w/ Mystify
     });
     renderWithClient(<FilterPicker />);
@@ -200,8 +200,8 @@ describe("FilterPicker", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: /Gender/i }), "male");
 
     expect(draftVoiceId()).toBe("v1"); // the voice followed the filter…
-    expect(activeScene()).toBe("mystify"); // …but the screensaver stayed put (not v1's Nyan)
-    expect(sceneOf("v1")).toBe("nyan"); // and the existing take is untouched
+    expect(activeScene()).toBe("mystify"); // …but the screensaver stayed put (not v1's Axolotl)
+    expect(sceneOf("v1")).toBe("axolotl"); // and the existing take is untouched
   });
 
   it("changing a voice filter leaves the chosen screensaver alone", async () => {
@@ -222,7 +222,7 @@ describe("FilterPicker", () => {
         { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "starfield", palette },
       ],
       selectedTakeId: "v1", // Starfield is on screen while recording
-      originalScene: "nyan",
+      originalScene: "axolotl",
     });
     useAudioStore.getState().setRecordedBlob(new Blob(["x"], { type: "audio/webm" }));
     expect(useAudioStore.getState().originalScene).toBe("starfield");
@@ -233,7 +233,7 @@ describe("FilterPicker", () => {
     const user = userEvent.setup();
     useAudioStore.setState({
       selectedTakeId: ORIGINAL_TAKE_ID, // "You" selected → no transform target
-      originalScene: "nyan",
+      originalScene: "axolotl",
       conversions: [
         { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "starfield", palette },
       ],

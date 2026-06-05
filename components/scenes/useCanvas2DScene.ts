@@ -25,7 +25,7 @@ export type Canvas2DSceneOptions = {
 };
 
 /**
- * Shared lifecycle for the 2D-canvas scenes (Mystify, Starfield, Nyan, Toasters): owns the canvas
+ * Shared lifecycle for the 2D-canvas scenes (Mystify, Starfield, Axolotl, Toasters): owns the canvas
  * ref, the rAF loop, cover-fitting, reduced-motion, and teardown. A scene supplies a `setup` that
  * returns its `draw(params)`; the hook feeds it the live params with the voice palette applied.
  */

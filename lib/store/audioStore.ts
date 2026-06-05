@@ -104,7 +104,7 @@ function paletteForTake(s: Pick<AudioState, "conversions">, id: string): Palette
 export const useAudioStore = create<AudioState>()((set) => ({
   params: silentParams(),
   recordedBlob: null,
-  originalScene: "nyan",
+  originalScene: "axolotl",
   conversions: [],
   selectedTakeId: ORIGINAL_TAKE_ID,
   draft: null,

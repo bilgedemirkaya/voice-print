@@ -43,7 +43,7 @@ The "wow" moment is that **changing the voice visibly changes the animation**. T
 
 These extend the brief without changing its spirit. Treat as opt-in:
 
-- **Named presets as "screensavers"** — each filter maps to a named retro scene (e.g. "MYSTIFY", "STARFIELD", "NYAN"), shown in a fake Display Properties dialog. This frames filter-switching as picking a screensaver, which sells the theme.- **Shareable "voiceprint"** — export the final state as a short looping video or a generated retro "About this voice" card.
+- **Named presets as "screensavers"** — each filter maps to a named retro scene (e.g. "MYSTIFY", "STARFIELD", "AXOLOTL"), shown in a fake Display Properties dialog. This frames filter-switching as picking a screensaver, which sells the theme.- **Shareable "voiceprint"** — export the final state as a short looping video or a generated retro "About this voice" card.
 
 ---
 
@@ -130,8 +130,8 @@ Each scene reads `AnimationParams`; switching filters changes the audio, which c
 1. **WAVEFIELD** — a displaced wireframe terrain driven directly by FFT bins (most clearly "voice-shaped"); additive-blended neon glow that brightens with `energy`.
 2. **MYSTIFY** — bouncing polylines with trailing afterimages; vertices jitter by `energy`, palette by `brightness`.
 3. **STARFIELD** — warp-speed star streaks; speed by `energy`, color by band split.
-4. **NYAN** — a pixel cat that bobs to the voice (`energy`), trailing a marching rainbow; flap/scroll by `treble`.
-5. **TOASTERS** — After Dark flying toasters; drift speed by `energy`, wing-flap by `treble`.
+4. **AXOLOTL** — an original pixel axolotl surfing a waving rainbow; wave amplitude + smile by `energy`, scroll/bob by `treble`, gills + tail wobble by `energy`. (Originally a Nyan Cat homage; redesigned to an original character to avoid that IP.)
+5. **TOASTERS** — flying-toaster homage (After Dark); drift speed by `energy`, wing-flap by `treble`. Original art, no copied assets.
 
 Each scene is a pure `*Style.ts` mapping (unit-tested) + a dumb renderer (WebGL for Wavefield, 2D canvas for the rest).
 
@@ -177,7 +177,7 @@ The converted audio is returned in the response body and never stored server-sid
   providers.tsx           client providers (TanStack Query client)
 /components
   /retro                  hand-built 95/98 chrome (Window, Button, Dialog, TaskBar)
-  /scenes                 scenes (Wavefield WebGL; Mystify, Starfield, Nyan, Toasters 2D)
+  /scenes                 scenes (Wavefield WebGL; Mystify, Starfield, Axolotl, Toasters 2D)
   /controls               recorder, filter picker, sliders, export, useTransform (transform mutation)
 /lib
   /audio                  analyser, feature extraction, params mapping
@@ -247,7 +247,7 @@ The bar to clear: a designer should look at it and believe it was deliberately a
 5. **Wire the loop** — record → transform → fetch result → re-analyze → animation changes.
 6. **Filter picker UI** — the Screen Saver dialog; named presets ↔ voices/scenes.
 7. **Polish** — Mystify scene, CRT, transitions, reduced-motion, export.
-8. **Stretch** — Starfield, Nyan, Toasters; shareable export video.
+8. **Stretch** — Starfield, Axolotl, Toasters; shareable export video.
 
 A reviewer should find something impressive by milestone 5; everything after is depth.
 

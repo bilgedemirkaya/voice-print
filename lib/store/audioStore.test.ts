@@ -10,7 +10,7 @@ describe("audioStore.reset", () => {
       recordedBlob: new Blob(["x"], { type: "audio/webm" }),
       conversions: [{ voiceId: "v1", voiceName: "A", url: "/a.mp3", sceneId: "mystify", palette }],
       selectedTakeId: "v1",
-      draft: { voiceId: "v2", voiceName: "B", sceneId: "nyan", palette },
+      draft: { voiceId: "v2", voiceName: "B", sceneId: "axolotl", palette },
       voicePalette: palette,
       dirty: true,
       transformError: "boom",

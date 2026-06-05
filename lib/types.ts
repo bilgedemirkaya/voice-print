@@ -8,7 +8,7 @@
 export type Palette = [string, string, string];
 
 /** The named "screensavers" the user can choose (CLAUDE.md §5). */
-export type SceneId = "wavefield" | "mystify" | "starfield" | "nyan" | "toasters";
+export type SceneId = "wavefield" | "mystify" | "starfield" | "axolotl" | "toasters";
 
 /** ElevenLabs voice-changer tuning, surfaced as advanced sliders (CLAUDE.md §6). */
 export type VoiceSettings = {

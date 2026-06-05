@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import type { SceneId } from "@/lib/types";
 import { Mystify } from "./Mystify";
 import { Starfield } from "./Starfield";
-import { Nyan } from "./Nyan";
+import { Axolotl } from "./Axolotl";
 import { Toasters } from "./Toasters";
 
 const WavefieldCanvas = dynamic(
@@ -19,7 +19,7 @@ export const SCENES: SceneMeta[] = [
   { id: "wavefield", name: "WAVEFIELD", implemented: true },
   { id: "mystify", name: "MYSTIFY", implemented: true },
   { id: "starfield", name: "STARFIELD", implemented: true },
-  { id: "nyan", name: "NYAN", implemented: true },
+  { id: "axolotl", name: "AXOLOTL", implemented: true },
   { id: "toasters", name: "TOASTERS", implemented: true },
 ];
 
@@ -28,7 +28,7 @@ export function SceneView({ scene }: { scene: SceneId }) {
   if (scene === "wavefield") return <WavefieldCanvas />;
   if (scene === "mystify") return <Mystify />;
   if (scene === "starfield") return <Starfield />;
-  if (scene === "nyan") return <Nyan />;
+  if (scene === "axolotl") return <Axolotl />;
   if (scene === "toasters") return <Toasters />;
   const name = SCENES.find((s) => s.id === scene)?.name ?? scene;
   return (

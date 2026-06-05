@@ -1,25 +1,25 @@
 import { clamp01 } from "@/lib/audio/features";
 import type { AnimationParams } from "@/lib/audio/types";
 
-/** Per-frame style for the Nyan scene. Pure data — no canvas, no React. */
-export type NyanStyle = {
-  bob: number; // vertical bob amplitude in px (energy)
+/** Per-frame style for the Axolotl scene. Pure data — no canvas, no React. */
+export type AxolotlStyle = {
+  bob: number; // wave amplitude in px (energy) — how big the rainbow surf is
   bobSpeed: number; // how fast it bobs (treble)
   scroll: number; // px/frame the trail + stars march left (energy)
   trail: number; // 0..1 rainbow vividness (energy)
-  wiggle: number; // leg/tail wiggle (energy); 0 under reduced motion
-  mouth: number; // 0..1 mouth openness (energy) — the cat "meows" as you get louder
+  wiggle: number; // gill + tail wobble (energy); 0 under reduced motion
+  mouth: number; // 0..1 smile/mouth openness (energy) — the axolotl beams as you get louder
   starColor: string; // twinkle accent, from the voice palette
 };
 
 /**
- * Map AnimationParams → Nyan style: the cat bobs more (and the rainbow scrolls faster + brighter)
+ * Map AnimationParams → Axolotl style: the rainbow surfs bigger (and scrolls faster + brighter)
  * the louder you are; treble makes the bob jauntier; the star color follows the voice palette.
  */
-export function nyanStyle(
+export function axolotlStyle(
   params: AnimationParams,
   options: { reducedMotion?: boolean } = {},
-): NyanStyle {
+): AxolotlStyle {
   const reduced = options.reducedMotion ?? false;
   const energy = clamp01(params.energy);
   const treble = clamp01(params.treble);

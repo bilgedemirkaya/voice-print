@@ -37,13 +37,15 @@ pnpm dev
 1. The screensaver reacts to your voice immediately while recording.
 2. Display Properties sets:
    - a mood with the Gender / Age / Accent / Vibe filters (they cascade — picking one narrows the rest, and the system matches you to a real ElevenLabs voice),
-   - a **screensaver** — WAVEFIELD, MYSTIFY, STARFIELD, **NYAN** (a pixel cat that bobs to your voice), or **TOASTERS** (the After Dark flying toasters, wings flapping to your voice),
+   - a **screensaver** — WAVEFIELD, MYSTIFY, STARFIELD, **AXOLOTL** (a pixel axolotl surfing your voice on a waving rainbow), or **TOASTERS** (flying toasters, wings flapping to your voice),
    - New voice's **Stability / Similarity / Style**.
 3. Your clip gets transformed and plays back. The visualization takes on that voice's **color** and **scene**.
 4. Use the **You / Voice A / Voice B / +** tabs to A/B them. Each voice keeps its own screensaver and palette, so flipping tabs flips the whole vibe.
 5. In the player, pick a format — **Video + sound** (`voiceprint.webm`) or **GIF** (`voiceprint.gif`) — and hit **🎬 Export** to download your shareable voiceprint of the live visuals.
 
 Bonus toggles: **CRT** scanlines and **Sounds** (synthesized 90s UI beeps).
+
+> The screensavers are affectionate homages drawn from scratch — no copied assets. This project is **not affiliated with or endorsed by** Microsoft, Berkeley Systems (After Dark), or any rights holder.
 
 ---
 
