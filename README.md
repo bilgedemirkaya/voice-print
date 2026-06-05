@@ -1,10 +1,10 @@
 # VOICEPRINT.SCR
 
-Record yourself, say a sentence, and a WebGL **screensaver springs to life, driven entirely by your voice.** Depending on your voice, the colors run hot and the motion spikes or it cools down and settles.
+Record yourself, say a sentence, and an axolotl or another WebGL **screensaver springs to life, driven entirely by your voice.** Depending on your voice, the colors run hot and the motion spikes or it cools down and settles.
 
 Open **Display Properties → Screen Saver** dialog and dial in a *vibe*; gender, age, accent, mood. Behind the scenes that picks a real ElevenLabs voice and **transforms your recording through it.** Depending on the pick, the screensaver **visibly transforms too**: new palette, new energy, a different waveform shape. You *hear* a new voice and *see* the visuals answer at the same instant.
 
-Stack up a few voices, each one remembers its own screensaver and identity, so flipping between them flips the entire mood. When you found the one, **export it as a shareable "voiceprint"**; a video with sound, or a GIF.
+Stack up a few voices, each one remembers its own screensaver and identity, so flipping between them flips the entire mood. When you found the one, **export it as a shareable "voiceprint"** — a video with sound.
 
 ## Demo
 
@@ -43,11 +43,9 @@ pnpm dev
    - New voice's **Stability / Similarity / Style**.
 3. Your clip gets transformed and plays back. The visualization takes on that voice's **color** and **scene**.
 4. Use the **You / Voice A / Voice B / +** tabs to A/B them. Each voice keeps its own screensaver and palette, so flipping tabs flips the whole vibe.
-5. In the player, pick a format — **Video + sound** (`voiceprint.webm`) or **GIF** (`voiceprint.gif`) — and hit **🎬 Export** to download your shareable voiceprint of the live visuals.
+5. In the player, hit **🎬 Export** to download a **video + sound** (`voiceprint.webm`) — your shareable voiceprint of the live visuals.
 
 Bonus toggles: **CRT** scanlines and **Sounds** (synthesized 90s UI beeps).
-
-> The screensavers are affectionate homages drawn from scratch — no copied assets. This project is **not affiliated with or endorsed by** Microsoft, Berkeley Systems (After Dark), or any rights holder.
 
 ---
 
@@ -83,23 +81,6 @@ The converted audio is **streamed back in the response body** (the browser plays
 
 ---
 
-## Deploy
-
-No server-side storage, so it runs on either a serverless host or a long-running server. Either way, set these env vars (see [`.env.example`](.env.example)):
-
-| Var | Required | Notes |
-|---|---|---|
-| `ELEVENLABS_API_KEY` | ✅ | The host key, server-side only. |
-| `TRIAL_COOKIE_SECRET` | ✅ (prod) | Long random value — signs the free-trial cookie so it can't be forged. |
-| `ACCESS_CODE` | optional | Shared unlock code for friends. |
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | optional | Per-IP trial backstop. |
-| `CF_BEACON_TOKEN` | optional | Cookieless analytics. |
-
-- **Vercel** (recommended — free, no idle spin-down): import the repo, add the env vars, deploy. Next.js is auto-detected; `/api/transform` runs as a serverless function (`maxDuration` is set for the ElevenLabs round-trip).
-- **Render**: one-click via [`render.yaml`](render.yaml). Note the **free plan spins down on idle (~50s cold start)** — use a paid plan (or Vercel) for an always-warm demo.
-
----
-
 ## Privacy
 
 - **Your microphone recording is never stored on our server.** It stays in your browser and is streamed straight to ElevenLabs for the transform, then dropped from memory — we never write it to disk.
@@ -108,27 +89,6 @@ No server-side storage, so it runs on either a serverless host or a long-running
 - **Analytics, if enabled, are cookieless.** Optional Cloudflare Web Analytics counts aggregate visits — no cookies, no personal data, no cross-site tracking.
 - **Third party:** audio is processed by [ElevenLabs](https://elevenlabs.io) under their terms for the duration of the transform.
 
----
-
-## Project layout
-
-```
-app/            Next.js App Router (desktop page + /api routes)
-components/
-  retro/        hand-built 95/98 chrome (Window, Button, Dialog, TaskBar)
-  scenes/       the six screensavers (WebGL + 2D canvas), each a pure-style fn + renderer
-  controls/     recorder, filter picker, sliders, export
-lib/
-  audio/         pure DSP — features → AnimationParams (no React, no Three)
-  store/         zustand store
-  elevenlabs.ts  server-side ElevenLabs client (voices + speech-to-speech)
-  trial.ts       signed-cookie free-trial gate;  trialIp.ts  per-IP Upstash backstop
-```
-
-The audio feature extraction is pure and unit-tested; scenes are dumb consumers of an `AnimationParams` object. Change the voice → change the params → change the picture.
-
----
-
 ## Contributing
 
-Ideas, bug reports, and PRs are very welcome — **we're always open to new screensavers, UX polish, and improvements.** Open an issue and let's build it. See **[CONTRIBUTING.md](CONTRIBUTING.md)** to get started — it includes a quick "add a screensaver" walkthrough.
+Ideas, bug reports, and PRs are very welcome — **we're always open to new screensavers, UX polish, and improvements.** Open an issue and let's build it. See **[CONTRIBUTING.md](CONTRIBUTING.md)** to get started, it includes a quick "add a screensaver" walkthrough.
