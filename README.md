@@ -9,7 +9,6 @@ Stack up a few voices, each one remembers its own screensaver and identity, so f
 ## Demo
 
 ▶︎ 
-[voice-change.webm](https://github.com/user-attachments/assets/7be9e21c-336f-4d9c-a62e-f897334a1c2a)
 https://github.com/user-attachments/assets/d0533db6-ebaf-42f6-88f6-885c25bc9dc3
 
 ---
