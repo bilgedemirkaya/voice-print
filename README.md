@@ -8,7 +8,6 @@ Stack up a few voices, each one remembers its own screensaver and identity, so f
 
 ## Demo
 
-▶︎ 
 https://github.com/user-attachments/assets/d0533db6-ebaf-42f6-88f6-885c25bc9dc3
 
 ---
