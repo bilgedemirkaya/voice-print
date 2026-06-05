@@ -8,7 +8,9 @@ Stack up a few voices, each one remembers its own screensaver and identity, so f
 
 ## Demo
 
-▶︎ **[Watch the demo — with sound](https://github.com/user-attachments/assets/5c43dcf4-72c2-4606-b31f-c346413755b6)** (hearing the voice change as the visuals answer is the whole point).
+▶︎ 
+[voice-change.webm](https://github.com/user-attachments/assets/7be9e21c-336f-4d9c-a62e-f897334a1c2a)
+https://github.com/user-attachments/assets/d0533db6-ebaf-42f6-88f6-885c25bc9dc3
 
 ---
 
