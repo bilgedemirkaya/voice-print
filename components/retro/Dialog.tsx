@@ -91,7 +91,7 @@ export function Dialog({ open, title, onClose, children, className }: DialogProp
             exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.12, ease: "easeOut" }}
             className={cn(
-              "flex max-h-[90vh] w-[360px] max-w-[90vw] flex-col bevel-raised bg-w95-silver text-black outline-none drop-shadow-[0_16px_32px_rgba(120,70,180,0.4)]",
+              "flex max-h-[88dvh] w-[360px] max-w-[92vw] flex-col bevel-raised bg-w95-silver text-black outline-none drop-shadow-[0_16px_32px_rgba(120,70,180,0.4)]",
               className,
             )}
           >

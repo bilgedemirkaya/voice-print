@@ -58,4 +58,25 @@ body {
   font-family: var(--font-w95);
   font-size: 14px;
   color: #2d2342;
+  /* Mobile: don't let iOS inflate our pixel text, don't rubber-band the page, no sideways scroll. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior: none;
+  overflow-x: hidden;
+}
+
+/* `background-attachment: fixed` is janky/expensive on touch devices — pin it normally there. */
+@media (pointer: coarse) {
+  body {
+    background-attachment: scroll;
+  }
+}
+
+/* Comfortable tap targets on touch: the retro controls are tiny by design on desktop. */
+@media (pointer: coarse) {
+  button,
+  select,
+  [role="button"] {
+    min-height: 32px;
+  }
 }

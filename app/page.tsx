@@ -65,7 +65,7 @@ export default function DesktopPage() {
   };
 
   return (
-    <main className="desktop-bg relative min-h-screen overflow-hidden">
+    <main className="desktop-bg relative h-[100dvh] overflow-hidden">
       <div
         className={
           fullscreen
