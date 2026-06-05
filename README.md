@@ -8,7 +8,7 @@ Stack up a few voices, each one remembers its own screensaver and identity, so f
 
 ## Demo
 
-▶︎ **[Watch the demo — with sound](https://github.com/bilgedemirkaya/voice-screen-saver/blob/main/voiceprint.webm)** (hearing the voice change as the visuals answer is the whole point).
+▶︎ **[Watch the demo — with sound](https://github.com/user-attachments/assets/5c43dcf4-72c2-4606-b31f-c346413755b6)** (hearing the voice change as the visuals answer is the whole point).
 
 ---
 
