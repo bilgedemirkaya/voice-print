@@ -254,10 +254,26 @@ describe("FilterPicker", () => {
     expect(useAudioStore.getState().voiceSettings.stability).toBe(0.8);
   });
 
-  it("disables Apply without a recording", async () => {
+  it("disables Apply with nothing to apply (no recording, no scene change)", async () => {
     renderWithClient(<FilterPicker />);
     await screen.findByRole("option", { name: "female" });
     expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  });
+
+  it("changing only the screensaver enables Apply and confirms it without a transform request", async () => {
+    const user = userEvent.setup();
+    const onApplied = vi.fn();
+    renderWithClient(<FilterPicker onApplied={onApplied} />); // no recording → nothing to transform
+    await screen.findByRole("button", { name: /MYSTIFY/ });
+
+    await user.click(screen.getByRole("button", { name: /MYSTIFY/ }));
+    expect(activeScene()).toBe("mystify"); // applied live to the main window
+    const apply = screen.getByRole("button", { name: "Apply" });
+    expect(apply).toBeEnabled();
+
+    await user.click(apply);
+    expect(onApplied).toHaveBeenCalledTimes(1);
+    expect(transformInit).toBeUndefined(); // never hit ElevenLabs
   });
 
   it("after recording, defaults a target voice so Apply is ready", async () => {

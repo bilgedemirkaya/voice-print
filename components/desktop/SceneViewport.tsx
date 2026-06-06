@@ -17,7 +17,7 @@ export const SceneViewport = forwardRef<HTMLDivElement>(function SceneViewport(_
   const transforming = useIsTransforming();
 
   return (
-    <div ref={ref} className="relative min-h-0 flex-1 overflow-hidden bevel-inset bg-[#140a28]">
+    <div ref={ref} className="relative min-h-0 flex-1 overflow-hidden bevel-inset bg-[#072a45]">
       <SceneView scene={activeScene} />
       {playingLabel && (
         <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-1.5 bg-black/55 px-2 py-1 text-[11px] font-bold text-white">

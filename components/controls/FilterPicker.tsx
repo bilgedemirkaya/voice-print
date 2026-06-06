@@ -73,6 +73,8 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const sceneName = SCENES.find((s) => s.id === activeScene)?.name ?? activeScene;
   const voiceName = currentVoice?.name ?? currentVoiceId;
   const [activeHint, setActiveHint] = useState(SLIDERS[0].hint);
+  // The user re-skinned the screensaver this session — lets Apply confirm it (no transform needed).
+  const [sceneTouched, setSceneTouched] = useState(false);
   const [codeDraft, setCodeDraft] = useState("");
   const [keyDraft, setKeyDraft] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
@@ -158,7 +160,12 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
     });
   };
 
-  const canApply = Boolean(recordedBlob) && Boolean(currentVoiceId) && dirty && !transforming && !trialBlocked;
+  // A transform is only warranted when there's a recording + a chosen voice + un-applied changes.
+  const needsTransform =
+    Boolean(recordedBlob) && Boolean(currentVoiceId) && dirty && !trialBlocked;
+  // Apply is enabled either to run that transform, or just to confirm a screensaver change (which is
+  // already applied live to the main window — no ElevenLabs request).
+  const canApply = !transforming && (needsTransform || sceneTouched);
 
   return (
     <div className="flex flex-col gap-3 text-xs">
@@ -189,7 +196,10 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
               <button
                 type="button"
                 onClick={() => {
-                  if (scene.id !== activeScene) setEditingScene(scene.id);
+                  if (scene.id !== activeScene) {
+                    setEditingScene(scene.id); // applies to the main window live
+                    setSceneTouched(true);
+                  }
                 }}
                 className={cn(
                   "w-full px-2 py-1 text-left",
@@ -401,7 +411,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
         <Button
           onClick={() => {
             sfx.apply();
-            transform();
+            if (needsTransform) transform(); // otherwise it's just a screensaver change — already live
             onApplied?.();
           }}
           disabled={!canApply}

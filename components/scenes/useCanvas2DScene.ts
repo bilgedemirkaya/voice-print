@@ -2,11 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import { useReducedMotion } from "framer-motion";
-import { fitCanvasCover } from "@/lib/canvasCover";
+import { fitCanvasContain } from "@/lib/canvasCover";
 import { selectVisualParams, useAudioStore } from "@/lib/store/audioStore";
 import type { AnimationParams } from "@/lib/audio/types";
 
-/** Paint one frame into the (already cover-fitted) context using the live params. */
+/** Paint one frame into the (already fitted) context using the live params. */
 export type SceneDraw = (params: AnimationParams) => void;
 
 /**
@@ -17,7 +17,7 @@ export type SceneDraw = (params: AnimationParams) => void;
 export type SceneSetup = (ctx: CanvasRenderingContext2D, reducedMotion: boolean) => SceneDraw;
 
 export type Canvas2DSceneOptions = {
-  /** Reference scene size; the canvas is cover-fitted to this each frame. */
+  /** Reference scene size; the canvas is contain-fitted to this each frame (centered, letterboxed). */
   width: number;
   height: number;
   /** Keep pixels crisp — re-asserted every frame, since resizing the canvas resets the context. */
@@ -48,7 +48,7 @@ export function useCanvas2DScene(
     let raf = 0;
     const tick = (): void => {
       raf = requestAnimationFrame(tick);
-      fitCanvasCover(canvas, ctx, width, height); // resizing the canvas resets the context state…
+      fitCanvasContain(canvas, ctx, width, height); // resizing the canvas resets the context state…
       if (pixelated) ctx.imageSmoothingEnabled = false; // …so re-assert crisp pixels each frame
       draw(selectVisualParams(useAudioStore.getState()));
     };

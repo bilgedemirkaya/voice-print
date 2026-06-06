@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { motion, useMotionValue, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { TitleBarButton } from "./Button";
@@ -51,6 +51,14 @@ export function Window({
   const resize = useRef<{ px: number; py: number; ow: number; oh: number } | null>(null);
   const reduce = useReducedMotion();
 
+  useEffect(() => {
+    w.set(width);
+  }, [w, width]);
+
+  useEffect(() => {
+    h.set(height);
+  }, [h, height]);
+
   function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -94,7 +102,7 @@ export function Window({
     ? { x: 0, y: 0, width: "100%", height: "100%" }
     : resizable
       ? { x, y, width: w, height: h }
-      : { x, y, width };
+      : { x, y, width, height };
 
   return (
     <motion.section

@@ -29,7 +29,7 @@ export default function DesktopPage() {
   const voicesQuery = useVoices();
   const voicesReady = voicesQuery.status !== "pending";
   const isMobile = useIsMobile();
-  const fullscreen = maximized || isMobile; // mobile is always maximized
+  const fullscreen = maximized; // mobile shows at smaller fixed size, not fullscreen
 
   // Restore any saved access code / bring-your-own-key once on mount (voices fetch via useVoices).
   useEffect(() => {

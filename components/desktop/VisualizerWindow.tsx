@@ -5,6 +5,7 @@ import { Button } from "@/components/retro/Button";
 import { Window } from "@/components/retro/Window";
 import { Recorder } from "@/components/controls/Recorder";
 import { SceneViewport } from "./SceneViewport";
+import { useIsMobile } from "@/lib/useIsMobile";
 
 type VisualizerWindowProps = {
   maximized: boolean;
@@ -33,6 +34,7 @@ export function VisualizerWindow({
   onOpenSettings,
   onAddVoice,
 }: VisualizerWindowProps) {
+  const isMobile = useIsMobile();
   const sceneRef = useRef<HTMLDivElement>(null);
   const getSceneCanvas = (): HTMLCanvasElement | null =>
     sceneRef.current?.querySelector("canvas") ?? null;
@@ -40,13 +42,13 @@ export function VisualizerWindow({
   return (
     <Window
       title="VOICEPRINT.SCR — Visualizer"
-      resizable={!fullscreen}
+      resizable={!fullscreen && !isMobile}
       fill={fullscreen}
       maximized={maximized}
-      width={880}
-      height={560}
+      width={isMobile ? 400 : 880}
+      height={isMobile ? 280 : 560}
       minWidth={420}
-      minHeight={320}
+      minHeight={isMobile ? 280 : 560}
       onMinimize={onMinimize}
       onMaximize={allowMaximize ? onMaximize : undefined}
       onClose={onClose}

@@ -14,6 +14,7 @@ Open **Display Properties → Screen Saver** dialog and dial in a *vibe*; gender
 Stack up a few voices, each one remembers its own screensaver and identity, so flipping between them flips the entire mood. When you found the one, **export it as a shareable "voiceprint"** — a video with sound.
 
 ## Demo
+🔗 [Live Demo](https://voice-print-zeta.vercel.app/)
 
 https://github.com/user-attachments/assets/f795e1f0-5747-4312-b480-0f282dfe7a23
 
