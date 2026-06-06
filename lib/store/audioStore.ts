@@ -7,6 +7,15 @@ import { DEFAULT_VOICE_SETTINGS } from "@/lib/types";
 /** The id of the original "You" recording in the compare gallery. */
 export const ORIGINAL_TAKE_ID = "original";
 
+/**
+ * Release a converted-take object URL. The store owns every `Conversion.url`, so it must revoke
+ * them when a take is replaced or the session is cleared — otherwise each transform pins its full
+ * MP3 in memory for the page's lifetime.
+ */
+function revokeConversionUrl(url: string | undefined): void {
+  if (url && typeof URL !== "undefined") URL.revokeObjectURL(url);
+}
+
 type AudioState = {
   // --- live analysis -------------------------------------------------------
   params: AnimationParams;
@@ -42,6 +51,12 @@ type AudioState = {
   playingLabel: string | null;
   /** Color identity of the displayed take (overrides the audio palette); read by every scene. */
   voicePalette: Palette | null;
+  /**
+   * Signal that a take was just converted, so the UI can auto-select + play it. The `nonce` makes
+   * re-converting an *existing* voice fire too (the take stays at its array index, so watching the
+   * list tail would miss it).
+   */
+  lastConverted: { voiceId: string; nonce: number } | null;
 
   // --- access model --------------------------------------------------------
   accessCode: string | null;
@@ -116,6 +131,7 @@ export const useAudioStore = create<AudioState>()((set) => ({
   exporting: false,
   playingLabel: null,
   voicePalette: null,
+  lastConverted: null,
   accessCode: null,
   userApiKey: null,
   trialRemaining: null,
@@ -125,15 +141,18 @@ export const useAudioStore = create<AudioState>()((set) => ({
   // A new recording invalidates prior conversions (they were of the old audio). "You" keeps
   // whatever screensaver was on screen while recording.
   setRecordedBlob: (recordedBlob) =>
-    set((s) => ({
-      recordedBlob,
-      conversions: [],
-      selectedTakeId: ORIGINAL_TAKE_ID,
-      draft: null,
-      voicePalette: null,
-      originalScene: selectActiveScene(s),
-      dirty: true,
-    })),
+    set((s) => {
+      s.conversions.forEach((c) => revokeConversionUrl(c.url));
+      return {
+        recordedBlob,
+        conversions: [],
+        selectedTakeId: ORIGINAL_TAKE_ID,
+        draft: null,
+        voicePalette: null,
+        originalScene: selectActiveScene(s),
+        dirty: true,
+      };
+    }),
 
   selectTake: (id) =>
     set((s) => ({
@@ -162,28 +181,37 @@ export const useAudioStore = create<AudioState>()((set) => ({
 
   addConversion: (conversion) =>
     set((s) => {
+      const lastConverted = { voiceId: conversion.voiceId, nonce: (s.lastConverted?.nonce ?? 0) + 1 };
       const index = s.conversions.findIndex((c) => c.voiceId === conversion.voiceId);
-      const conversions =
-        index >= 0
-          ? s.conversions.map((c, i) => (i === index ? conversion : c))
-          : [...s.conversions, conversion];
-      return { conversions };
+      if (index >= 0) {
+        // Re-converting a voice replaces its take — release the take it supersedes.
+        const previous = s.conversions[index];
+        if (previous.url !== conversion.url) revokeConversionUrl(previous.url);
+        return {
+          conversions: s.conversions.map((c, i) => (i === index ? conversion : c)),
+          lastConverted,
+        };
+      }
+      return { conversions: [...s.conversions, conversion], lastConverted };
     }),
 
   // Wipe the working session (recording, takes, draft, tuning) but keep display + access prefs.
   // The chosen "You" screensaver is a preference, so it survives too.
   reset: () =>
-    set({
-      params: silentParams(),
-      recordedBlob: null,
-      conversions: [],
-      selectedTakeId: ORIGINAL_TAKE_ID,
-      draft: null,
-      voiceSettings: DEFAULT_VOICE_SETTINGS,
-      dirty: false,
-      transformError: null,
-      playingLabel: null,
-      voicePalette: null,
+    set((s) => {
+      s.conversions.forEach((c) => revokeConversionUrl(c.url));
+      return {
+        params: silentParams(),
+        recordedBlob: null,
+        conversions: [],
+        selectedTakeId: ORIGINAL_TAKE_ID,
+        draft: null,
+        voiceSettings: DEFAULT_VOICE_SETTINGS,
+        dirty: false,
+        transformError: null,
+        playingLabel: null,
+        voicePalette: null,
+      };
     }),
 
   setVoiceSettings: (voiceSettings) => set({ voiceSettings }),

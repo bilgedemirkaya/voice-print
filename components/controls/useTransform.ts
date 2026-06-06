@@ -46,23 +46,39 @@ export function useTransform() {
   const mutation = useMutation({
     mutationKey: TRANSFORM_KEY,
     mutationFn: async (): Promise<void> => {
-      const s = useAudioStore.getState();
-      const blob = s.recordedBlob;
+      const store = useAudioStore.getState();
+      const blob = store.recordedBlob;
       // The take to (re)convert: the draft's voice when composing, else the selected voice take.
       const targetVoiceId =
-        s.draft?.voiceId ?? (s.selectedTakeId !== ORIGINAL_TAKE_ID ? s.selectedTakeId : "");
+        store.draft?.voiceId ??
+        (store.selectedTakeId !== ORIGINAL_TAKE_ID ? store.selectedTakeId : "");
       if (!blob || !targetVoiceId) return;
 
-      s.setTransformError(null);
+      // Snapshot the take's identity *as it is when Apply is pressed*. The converted audio belongs to
+      // this voice, with the scene + color shown in the dialog right now — so we bind them here and
+      // not after the network round-trip. Reading them post-`await` would let a take the user clicks
+      // mid-conversion silently retarget where this clip lands.
+      const target = {
+        voiceId: targetVoiceId,
+        voiceName:
+          store.draft?.voiceName ??
+          store.conversions.find((c) => c.voiceId === targetVoiceId)?.voiceName ??
+          targetVoiceId,
+        sceneId: selectActiveScene(store),
+        palette: store.voicePalette ?? store.params.palette,
+      };
+      const { voiceSettings, accessCode, userApiKey } = store;
+
+      store.setTransformError(null);
       try {
         const form = new FormData();
         form.append("audio", blob, "recording.webm");
-        form.append("targetVoiceId", targetVoiceId);
-        form.append("settings", JSON.stringify(s.voiceSettings));
+        form.append("targetVoiceId", target.voiceId);
+        form.append("settings", JSON.stringify(voiceSettings));
 
         const headers: Record<string, string> = {};
-        if (s.accessCode) headers[ACCESS_CODE_HEADER] = s.accessCode;
-        if (s.userApiKey) headers[BYOK_HEADER] = s.userApiKey;
+        if (accessCode) headers[ACCESS_CODE_HEADER] = accessCode;
+        if (userApiKey) headers[BYOK_HEADER] = userApiKey;
 
         const res = await fetch("/api/transform", {
           method: "POST",
@@ -70,32 +86,28 @@ export function useTransform() {
           headers: Object.keys(headers).length > 0 ? headers : undefined,
         });
 
+        // Re-read the store for the post-`await` *writes* (its actions are stable, but this keeps the
+        // mutation honest about reading current state); the take's identity stays the pre-flight snapshot.
+        const live = useAudioStore.getState();
+
         if (!res.ok) {
           // Errors come back as JSON (e.g. quota / trial-exhausted), which may carry a fresh count.
           const data = (await res.json().catch(() => ({}))) as TransformError;
-          if (data.remaining !== undefined) s.setTrialRemaining(data.remaining);
+          if (data.remaining !== undefined) live.setTrialRemaining(data.remaining);
           throw new Error(data.error ?? "Transform failed");
         }
 
         // Success is the converted audio itself (no server-side storage); play it via an object URL.
         const remaining = parseRemaining(res.headers.get("X-Trial-Remaining"));
-        if (remaining !== undefined) s.setTrialRemaining(remaining);
+        if (remaining !== undefined) live.setTrialRemaining(remaining);
         const url = URL.createObjectURL(await res.blob());
 
-        const voiceName =
-          s.draft?.voiceName ??
-          s.conversions.find((c) => c.voiceId === targetVoiceId)?.voiceName ??
-          targetVoiceId;
-        s.addConversion({
-          voiceId: targetVoiceId,
-          voiceName,
-          url,
-          sceneId: selectActiveScene(s),
-          palette: s.voicePalette ?? s.params.palette,
-        });
-        s.setDirty(false);
+        live.addConversion({ ...target, url });
+        live.setDirty(false);
       } catch (err) {
-        s.setTransformError(friendlyError(err instanceof Error ? err.message : "Transform failed"));
+        useAudioStore
+          .getState()
+          .setTransformError(friendlyError(err instanceof Error ? err.message : "Transform failed"));
         sfx.error();
       }
     },

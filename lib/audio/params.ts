@@ -12,7 +12,7 @@ export { clamp01 } from "./features";
 
 const ENERGY_GAIN = 1.4; // lifts perceptual loudness so normal speech reads as mid energy
 const ROUGHNESS_GAIN = 3; // ZCR of voiced speech is small; lift it into a usable range
-const WAVEFORM_SIZE = 128; // downsampled points stored for scenes
+export const WAVEFORM_SIZE = 128; // downsampled points stored for scenes
 
 /** HSL (h 0..360, s/l 0..100) → #rrggbb. Pure, deterministic. */
 export function hslToHex(h: number, s: number, l: number): string {

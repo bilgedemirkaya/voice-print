@@ -87,6 +87,8 @@ ElevenLabs (voice list + speech-to-speech)
 
 The converted audio is **streamed back in the response body** (the browser plays it via an object URL) — never stored on the server and never base64-shuttled, so it runs on serverless hosts too. All audio analysis (FFT → `AnimationParams`) is pure, client-side, and unit-tested.
 
+**Rendering split:** **WAVEFIELD runs on the GPU** — its terrain is displaced and colored entirely in GLSL vertex/fragment shaders, fed the voice's waveform as a texture and its band energies as uniforms (the per-frame mapping is a pure, unit-tested function). The other scenes are lightweight **2D-canvas** renderers on the main thread; they draw few enough primitives that moving them to the GPU would add complexity without a payoff. Both kinds consume the same `AnimationParams`, so a scene stays a dumb consumer of the voice.
+
 ---
 
 ## Privacy
