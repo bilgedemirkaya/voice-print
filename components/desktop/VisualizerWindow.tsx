@@ -54,7 +54,15 @@ export function VisualizerWindow({
       onClose={onClose}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-3">
-        <SceneViewport ref={sceneRef} />
+        {isMobile ? (
+          // Mobile: show the scene as a full-width 16:9 band centered in the (taller) window, so the
+          // whole scene is visible — no portrait cover-crop/zoom — with the chrome filling the rest.
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <SceneViewport ref={sceneRef} className="aspect-video w-full" />
+          </div>
+        ) : (
+          <SceneViewport ref={sceneRef} />
+        )}
         <div className="flex shrink-0 flex-wrap items-end justify-between gap-2">
           <Recorder
             onRecorded={onOpenSettings}

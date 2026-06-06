@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useReducedMotion } from "framer-motion";
-import { fitCanvasContain } from "@/lib/canvasCover";
+import { fitCanvasCover } from "@/lib/canvasCover";
 import { selectVisualParams, useAudioStore } from "@/lib/store/audioStore";
 import type { AnimationParams } from "@/lib/audio/types";
 
@@ -17,11 +17,14 @@ export type SceneDraw = (params: AnimationParams) => void;
 export type SceneSetup = (ctx: CanvasRenderingContext2D, reducedMotion: boolean) => SceneDraw;
 
 export type Canvas2DSceneOptions = {
-  /** Reference scene size; the canvas is contain-fitted to this each frame (centered, letterboxed). */
+  /** Reference scene size; the canvas is cover-fitted to this each frame (fills the box, crops overflow). */
   width: number;
   height: number;
   /** Keep pixels crisp — re-asserted every frame, since resizing the canvas resets the context. */
   pixelated?: boolean;
+  /** Which part survives the cover-crop when aspect ratios differ (0..1). Defaults to centered. */
+  anchorX?: number;
+  anchorY?: number;
 };
 
 /**
@@ -31,7 +34,7 @@ export type Canvas2DSceneOptions = {
  */
 export function useCanvas2DScene(
   setup: SceneSetup,
-  { width, height, pixelated = false }: Canvas2DSceneOptions,
+  { width, height, pixelated = false, anchorX = 0.5, anchorY = 0.5 }: Canvas2DSceneOptions,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reduced = useReducedMotion() ?? false;
@@ -48,13 +51,14 @@ export function useCanvas2DScene(
     let raf = 0;
     const tick = (): void => {
       raf = requestAnimationFrame(tick);
-      fitCanvasContain(canvas, ctx, width, height); // resizing the canvas resets the context state…
+      // Cover-fit so the scene fills every pixel (no letterbox strips that show through as bars)…
+      fitCanvasCover(canvas, ctx, width, height, anchorX, anchorY);
       if (pixelated) ctx.imageSmoothingEnabled = false; // …so re-assert crisp pixels each frame
       draw(selectVisualParams(useAudioStore.getState()));
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [reduced, width, height, pixelated]);
+  }, [reduced, width, height, pixelated, anchorX, anchorY]);
 
   return canvasRef;
 }

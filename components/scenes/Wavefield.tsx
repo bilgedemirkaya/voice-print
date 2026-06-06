@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useReducedMotion } from "framer-motion";
 import * as THREE from "three";
 import { selectVisualParams, useAudioStore } from "@/lib/store/audioStore";
@@ -13,6 +13,26 @@ const WIDTH = 8;
 const DEPTH = 6;
 const COLS = SEG_X + 1;
 const VERTS = COLS * (SEG_Y + 1);
+
+// Locked *horizontal* field of view. three.js holds the vertical FOV constant by default, so the
+// terrain's front edge spills past the left/right window edges as the canvas narrows. Locking the
+// horizontal FOV instead keeps the terrain framed identically — fully inside the window — at any
+// aspect ratio (desktop, resized, or mobile).
+const HFOV_DEG = 64;
+
+/** Keeps the terrain framed the same width regardless of the canvas aspect ratio. */
+function ResponsiveCamera() {
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  useEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    const aspect = size.width / Math.max(1, size.height);
+    const hfov = (HFOV_DEG * Math.PI) / 180;
+    cam.fov = (2 * Math.atan(Math.tan(hfov / 2) / aspect) * 180) / Math.PI;
+    cam.updateProjectionMatrix();
+  }, [camera, size]);
+  return null;
+}
 
 function pseudoNoise(x: number, y: number, t: number): number {
   const n = Math.sin(x * 12.9898 + y * 78.233 + t * 37.719) * 43758.5453;
@@ -118,10 +138,11 @@ export function WavefieldCanvas() {
   return (
     <Canvas
       dpr={[1, 2]}
-      camera={{ position: [0, 1.6, 5], fov: 50 }}
+      camera={{ position: [0, 2.1, 6], fov: 50 }}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
     >
       <color attach="background" args={["#140a28"]} />
+      <ResponsiveCamera />
       <Wavefield />
     </Canvas>
   );

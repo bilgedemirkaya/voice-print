@@ -29,7 +29,9 @@ export default function DesktopPage() {
   const voicesQuery = useVoices();
   const voicesReady = voicesQuery.status !== "pending";
   const isMobile = useIsMobile();
-  const fullscreen = maximized; // mobile shows at smaller fixed size, not fullscreen
+  // Only a desktop maximize fills the whole desktop. Mobile is a large *centered* window (sized by
+  // the wrapper below) so it uses the screen without being pinned edge-to-edge.
+  const fullscreen = maximized;
 
   // Restore any saved access code / bring-your-own-key once on mount (voices fetch via useVoices).
   useEffect(() => {
@@ -70,26 +72,32 @@ export default function DesktopPage() {
         className={
           fullscreen
             ? "absolute inset-2 bottom-12"
-            : "absolute inset-0 bottom-12 flex items-center justify-center p-4"
+            : "absolute inset-0 bottom-12 flex items-center justify-center p-3 sm:p-4"
         }
       >
         <AnimatePresence>
           {windowOpen && (
-            <VisualizerWindow
+            // On mobile the window fills a large *centered* box (so it's prominent but not pinned
+            // edge-to-edge); on desktop it's the normal fixed/maximized window.
+            <div
               key="visualizer"
-              maximized={maximized}
-              fullscreen={fullscreen}
-              allowMaximize={!isMobile}
-              pendingOpen={pendingOpen}
-              onMinimize={() => setWindowOpen(false)}
-              onMaximize={() => setMaximized((m) => !m)}
-              onClose={() => {
-                setMaximized(false);
-                setWindowOpen(false);
-              }}
-              onOpenSettings={openSettings}
-              onAddVoice={addVoice}
-            />
+              className={isMobile ? "h-[58dvh] max-h-[320px] w-full max-w-[460px]" : "contents"}
+            >
+              <VisualizerWindow
+                maximized={maximized}
+                fullscreen={fullscreen || isMobile}
+                allowMaximize={!isMobile}
+                pendingOpen={pendingOpen}
+                onMinimize={() => setWindowOpen(false)}
+                onMaximize={() => setMaximized((m) => !m)}
+                onClose={() => {
+                  setMaximized(false);
+                  setWindowOpen(false);
+                }}
+                onOpenSettings={openSettings}
+                onAddVoice={addVoice}
+              />
+            </div>
           )}
         </AnimatePresence>
       </div>

@@ -11,6 +11,9 @@ const BUBBLE_COUNT = 22;
 // Rainbow trail, top → bottom.
 const RAINBOW = ["#ff0f4b", "#ff8c00", "#ffe600", "#36e000", "#00a8ff", "#7a3cff"];
 const BAND_H = 7;
+// Extra reference-px to draw the rainbow just past the right edge so it flows off screen rather
+// than ending in a hard vertical terminus (the canvas clips the overflow).
+const RAINBOW_OVERSCAN = 80;
 
 // Flat pixel palette (no gradients/gloss — 2008-retro, but two-tone for a bit of depth).
 const PINK = "#f7a3d0";
@@ -190,8 +193,11 @@ export function Axolotl() {
         }
 
         // Wavy rainbow ribbon — thin at the mouth, widening out; darker squares march outward.
+        // Draw past the right edge (RAINBOW_OVERSCAN) so the ribbon flows *off* screen instead of
+        // ending in a hard vertical bar at the edge; the canvas clips the overflow. The overscan
+        // also covers any contain-fit letterbox on wide windows.
         ctx.globalAlpha = style.trail;
-        for (let x = MOUTH_X; x <= W; x += STRIPE_W) {
+        for (let x = MOUTH_X; x <= W + RAINBOW_OVERSCAN; x += STRIPE_W) {
           const grow = Math.min(1, (x - MOUTH_X) / 200);
           const bandH = BAND_H * (0.28 + 0.72 * grow);
           const stackH = bandH * RAINBOW.length;
@@ -215,7 +221,9 @@ export function Axolotl() {
         ctx.restore();
       };
     },
-    { width: W, height: H, pixelated: true },
+    // Anchor the cover-crop to the left so the axolotl always stays in frame; the rainbow tail on
+    // the right is what gets cropped (it flows off screen anyway).
+    { width: W, height: H, pixelated: true, anchorX: 0 },
   );
 
   return <canvas ref={canvasRef} className="block h-full w-full" />;
