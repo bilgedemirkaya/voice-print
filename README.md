@@ -89,6 +89,11 @@ The converted audio is **streamed back in the response body** (the browser plays
 
 **Rendering split:** **WAVEFIELD runs on the GPU** — its terrain is displaced and colored entirely in GLSL vertex/fragment shaders, fed the voice's waveform as a texture and its band energies as uniforms (the per-frame mapping is a pure, unit-tested function). The other scenes are lightweight **2D-canvas** renderers on the main thread; they draw few enough primitives that moving them to the GPU would add complexity without a payoff. Both kinds consume the same `AnimationParams`, so a scene stays a dumb consumer of the voice.
 
+
+
+https://github.com/user-attachments/assets/69555be4-ea76-4534-b8e2-a05a9a9c7201
+
+
 ---
 
 ## Privacy
