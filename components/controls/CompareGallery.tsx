@@ -42,21 +42,20 @@ function Tab({
 }
 
 /**
- * The A/B/C compare gallery: flip between "You" (original) and each converted voice, add a voice, or
- * start over. Presentational — the parent owns selection + the take list.
+ * The A/B/C compare gallery: flip between "You" (original) and each converted voice, or add a voice.
+ * Presentational — the parent owns selection + the take list. (Discarding everything lives in the
+ * recorder's primary Start over button, not here.)
  */
 export function CompareGallery({
   source,
   conversions,
   onSelect,
   onAddVoice,
-  onStartOver,
 }: {
   source: string;
   conversions: Conversion[];
   onSelect: (id: string) => void;
   onAddVoice?: () => void;
-  onStartOver: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
@@ -79,9 +78,6 @@ export function CompareGallery({
           +
         </Tab>
       )}
-      <Tab title="Discard the recording and all voices" onClick={onStartOver} className="ml-auto">
-        ↺ Start over
-      </Tab>
     </div>
   );
 }

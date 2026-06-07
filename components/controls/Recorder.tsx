@@ -147,6 +147,11 @@ export function Recorder({
         <div className="flex items-center gap-2">
           {status === "recording" ? (
             <Button onClick={stop}>■ Stop</Button>
+          ) : recordedBlob ? (
+            // Once a recording exists, "record again" would discard the clip *and* every converted
+            // take — exactly what Start over does — so we surface a single, clearly-labelled Start
+            // over (with confirm) instead of a Record button that silently wipes your work.
+            <Button onClick={() => setConfirmingReset(true)}>↺ Start over</Button>
           ) : (
             <Button onClick={() => void start()} disabled={status === "requesting"}>
               ● Record
@@ -177,7 +182,6 @@ export function Recorder({
               conversions={conversions}
               onSelect={selectSource}
               onAddVoice={onAddVoice}
-              onStartOver={() => setConfirmingReset(true)}
             />
 
             <ClipTransport
@@ -209,8 +213,7 @@ export function Recorder({
       <Dialog open={confirmingReset} title="Start over" onClose={() => setConfirmingReset(false)}>
         <div className="flex flex-col gap-3 text-xs">
           <p className="leading-snug">
-            This discards your recording and all converted voices. You&apos;ll start from a blank
-            slate.
+            This discards your recording and all converted voices.
           </p>
           <div className="flex justify-end gap-2">
             <Button onClick={() => setConfirmingReset(false)}>Cancel</Button>
