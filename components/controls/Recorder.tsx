@@ -12,6 +12,7 @@ import { useIsTransforming } from "@/components/controls/useTransform";
 import { useAudioContext } from "@/components/controls/useAudioContext";
 import { useRecording, type RecordingStatus } from "@/components/controls/useRecording";
 import { useClipPlayback } from "@/components/controls/useClipPlayback";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { sfx } from "@/lib/sfx";
 
 const STATUS_LABEL: Record<RecordingStatus, string> = {
@@ -39,6 +40,7 @@ export function Recorder({
 } = {}) {
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const isMobile = useIsMobile();
 
   const source = useAudioStore((s) => s.selectedTakeId); // "original" or a voiceId
   const selectTake = useAudioStore((s) => s.selectTake);
@@ -161,7 +163,9 @@ export function Recorder({
           </span>
         </div>
 
-        {status === "recording" && <VuMeter />}
+        {/* The intensity bar grows the controls and shoves the small mobile window's scene up over the
+            title bar — and the scene already shows the mic is live — so it's desktop-only. */}
+        {status === "recording" && !isMobile && <VuMeter />}
         {micError && <p className="text-[#b00020]">{micError}</p>}
         {transforming && <p className="text-w95-darkgray">Transforming…</p>}
         {transformError && <p className="text-[#b00020]">{transformError}</p>}

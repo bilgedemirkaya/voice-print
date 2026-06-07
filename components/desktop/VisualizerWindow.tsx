@@ -57,8 +57,11 @@ export function VisualizerWindow({
         {isMobile ? (
           // Mobile: show the scene as a full-width 16:9 band centered in the (taller) window, so the
           // whole scene is visible — no portrait cover-crop/zoom — with the chrome filling the rest.
-          <div className="flex min-h-0 flex-1 items-center justify-center">
-            <SceneViewport ref={sceneRef} className="aspect-video w-full" />
+          // `overflow-hidden` + `max-h-full` keep the band inside its slot: when the recorder controls
+          // grow (recording / recorded takes), the scene shrinks to fit instead of spilling up over
+          // the title bar in the small fixed-height mobile window.
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+            <SceneViewport ref={sceneRef} className="aspect-video w-full max-h-full" />
           </div>
         ) : (
           <SceneViewport ref={sceneRef} />

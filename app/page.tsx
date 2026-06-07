@@ -81,7 +81,7 @@ export default function DesktopPage() {
             // edge-to-edge); on desktop it's the normal fixed/maximized window.
             <div
               key="visualizer"
-              className={isMobile ? "h-[58dvh] max-h-[320px] w-full max-w-[460px]" : "contents"}
+              className={isMobile ? "h-[80dvh] max-h-[560px] w-full max-w-[460px]" : "contents"}
             >
               <VisualizerWindow
                 maximized={maximized}

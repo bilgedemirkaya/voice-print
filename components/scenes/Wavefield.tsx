@@ -94,14 +94,13 @@ const FRAGMENT_SHADER = /* glsl */ `
 
 /** Keeps the terrain framed the same width regardless of the canvas aspect ratio. */
 function ResponsiveCamera() {
-  const camera = useThree((s) => s.camera);
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const size = useThree((s) => s.size);
   useEffect(() => {
-    const cam = camera as THREE.PerspectiveCamera;
     const aspect = size.width / Math.max(1, size.height);
     const hfov = (HFOV_DEG * Math.PI) / 180;
-    cam.fov = (2 * Math.atan(Math.tan(hfov / 2) / aspect) * 180) / Math.PI;
-    cam.updateProjectionMatrix();
+    camera.fov = (2 * Math.atan(Math.tan(hfov / 2) / aspect) * 180) / Math.PI;
+    camera.updateProjectionMatrix();
   }, [camera, size]);
   return null;
 }
