@@ -43,7 +43,6 @@ type AudioState = {
   transformError: string | null;
 
   // --- display -------------------------------------------------------------
-  crtEnabled: boolean;
   soundEnabled: boolean;
   /** Whether a visualization clip is currently being recorded for export. */
   exporting: boolean;
@@ -82,7 +81,6 @@ type AudioState = {
   setDirty: (dirty: boolean) => void;
   setTransformError: (error: string | null) => void;
 
-  setCrtEnabled: (enabled: boolean) => void;
   setSoundEnabled: (enabled: boolean) => void;
   setExporting: (exporting: boolean) => void;
   setPlayingLabel: (label: string | null) => void;
@@ -126,7 +124,6 @@ export const useAudioStore = create<AudioState>()((set) => ({
   voiceSettings: DEFAULT_VOICE_SETTINGS,
   dirty: false,
   transformError: null,
-  crtEnabled: true,
   soundEnabled: true,
   exporting: false,
   playingLabel: null,
@@ -147,8 +144,11 @@ export const useAudioStore = create<AudioState>()((set) => ({
         recordedBlob,
         conversions: [],
         selectedTakeId: ORIGINAL_TAKE_ID,
-        draft: null,
-        voicePalette: null,
+        // Keep a pending draft (a voice/scene/color queued in Display Properties *before* recording):
+        // it's the user's intent, not one of the cleared old-audio takes, so recording shouldn't make
+        // them re-pick it. Its palette stays on screen so the scene's identity doesn't flicker either.
+        draft: s.draft,
+        voicePalette: s.draft ? s.draft.palette : null,
         originalScene: selectActiveScene(s),
         dirty: true,
       };
@@ -218,7 +218,6 @@ export const useAudioStore = create<AudioState>()((set) => ({
   setDirty: (dirty) => set({ dirty }),
   setTransformError: (transformError) => set({ transformError }),
 
-  setCrtEnabled: (crtEnabled) => set({ crtEnabled }),
   setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
   setExporting: (exporting) => set({ exporting }),
   setPlayingLabel: (playingLabel) => set({ playingLabel }),

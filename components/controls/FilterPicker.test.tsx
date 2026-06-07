@@ -46,7 +46,6 @@ function resetStore() {
     recordedBlob: null,
     dirty: false,
     transformError: null,
-    crtEnabled: true,
     soundEnabled: true,
     voicePalette: null,
     accessCode: null,
@@ -104,6 +103,7 @@ describe("FilterPicker", () => {
 
   it("picking a voice by a label filter starts a draft and sets a voice palette", async () => {
     const user = userEvent.setup();
+    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }) }); // voice filters need a recording
     renderWithClient(<FilterPicker />);
     await screen.findByRole("option", { name: "female" });
 
@@ -144,6 +144,7 @@ describe("FilterPicker", () => {
   it("configuring a different voice does NOT overwrite the selected take's scene (the bug)", async () => {
     const user = userEvent.setup();
     useAudioStore.setState({
+      recordedBlob: new Blob(["rec"], { type: "audio/webm" }),
       conversions: [
         { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "wavefield", palette },
       ],
@@ -187,6 +188,7 @@ describe("FilterPicker", () => {
   it("a voice filter never changes the screensaver, even when it lands on the selected take's voice", async () => {
     const user = userEvent.setup();
     useAudioStore.setState({
+      recordedBlob: new Blob(["rec"], { type: "audio/webm" }),
       conversions: [
         { voiceId: "v1", voiceName: "Robotic", url: "/a.mp3", sceneId: "axolotl", palette },
       ],
@@ -206,7 +208,10 @@ describe("FilterPicker", () => {
 
   it("changing a voice filter leaves the chosen screensaver alone", async () => {
     const user = userEvent.setup();
-    useAudioStore.setState({ originalScene: "starfield" }); // the user deliberately picked Starfield
+    useAudioStore.setState({
+      originalScene: "starfield", // the user deliberately picked Starfield
+      recordedBlob: new Blob(["rec"], { type: "audio/webm" }),
+    });
     renderWithClient(<FilterPicker />);
     await screen.findByRole("option", { name: "female" });
 
@@ -248,10 +253,20 @@ describe("FilterPicker", () => {
   });
 
   it("a slider updates voiceSettings", async () => {
+    useAudioStore.setState({ recordedBlob: new Blob(["rec"], { type: "audio/webm" }) }); // settings need a recording
     renderWithClient(<FilterPicker />);
     const stability = await screen.findByRole("slider", { name: /Stability/ });
     fireEvent.change(stability, { target: { value: "0.8" } });
     expect(useAudioStore.getState().voiceSettings.stability).toBe(0.8);
+  });
+
+  it("gates voice filters + settings until a recording exists", async () => {
+    renderWithClient(<FilterPicker />); // beforeEach leaves recordedBlob null
+    // screensavers are always selectable…
+    expect(await screen.findByRole("button", { name: /WAVEFIELD/ })).toBeEnabled();
+    // …but a voice filter transforms a recording, so it (and the settings) stay disabled without one
+    expect(screen.getByRole("combobox", { name: /Gender/i })).toBeDisabled();
+    expect(screen.getByRole("slider", { name: /Stability/ })).toBeDisabled();
   });
 
   it("disables Apply with nothing to apply (no recording, no scene change)", async () => {
@@ -336,15 +351,6 @@ describe("FilterPicker", () => {
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
     expect(onApplied).toHaveBeenCalledTimes(1);
-  });
-
-  it("toggles the CRT effect", async () => {
-    const user = userEvent.setup();
-    renderWithClient(<FilterPicker />);
-    const checkbox = await screen.findByRole("checkbox", { name: /CRT/ });
-    expect(checkbox).toBeChecked();
-    await user.click(checkbox);
-    expect(useAudioStore.getState().crtEnabled).toBe(false);
   });
 
   it("toggles sounds", async () => {

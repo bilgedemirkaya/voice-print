@@ -45,8 +45,6 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const voiceSettings = useAudioStore((s) => s.voiceSettings);
   const setVoiceSettings = useAudioStore((s) => s.setVoiceSettings);
   const transformError = useAudioStore((s) => s.transformError);
-  const crtEnabled = useAudioStore((s) => s.crtEnabled);
-  const setCrtEnabled = useAudioStore((s) => s.setCrtEnabled);
   const soundEnabled = useAudioStore((s) => s.soundEnabled);
   const setSoundEnabled = useAudioStore((s) => s.setSoundEnabled);
   const dirty = useAudioStore((s) => s.dirty);
@@ -69,6 +67,9 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
   const currentVoiceId =
     draft?.voiceId ?? (selectedTakeId !== ORIGINAL_TAKE_ID ? selectedTakeId : "");
   const currentVoice = voices.find((v) => v.id === currentVoiceId);
+  // A voice filter transforms a recording — so until one exists, only screensavers are selectable;
+  // the voice + settings controls stay visible but disabled (with a hint) so the flow is discoverable.
+  const hasRecording = Boolean(recordedBlob);
 
   const sceneName = SCENES.find((s) => s.id === activeScene)?.name ?? activeScene;
   const voiceName = currentVoice?.name ?? currentVoiceId;
@@ -216,7 +217,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
         </ul>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className={cn("flex flex-col gap-1.5", !hasRecording && "opacity-50")}>
         <p className="font-bold">Voice</p>
         <div className="grid grid-cols-2 gap-1.5">
           {VOICE_FILTERS.map((f) => (
@@ -225,7 +226,8 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
               <select
                 value={filters[f.key]}
                 onChange={(event) => onFilterChange(f.key, event.target.value)}
-                className="bevel-inset min-w-0 flex-1 bg-white px-1 py-0.5 capitalize"
+                disabled={!hasRecording}
+                className="bevel-inset min-w-0 flex-1 bg-white px-1 py-0.5 capitalize disabled:cursor-not-allowed"
               >
                 <option value="">Any</option>
                 {optionsFor(f.key).map((opt) => (
@@ -238,17 +240,19 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
           ))}
         </div>
         <p className="text-[10px] italic text-w95-darkgray">
-          {matchedVoices.length === 0
-            ? voicesError
-              ? "Couldn't load voices."
-              : "No voices match these filters."
-            : `${matchedVoices.length} voice${matchedVoices.length === 1 ? "" : "s"} → ${
-                voiceName || matchedVoices[0].name
-              }`}
+          {!hasRecording
+            ? "Record your voice first — then pick a voice filter to transform it."
+            : matchedVoices.length === 0
+              ? voicesError
+                ? "Couldn't load voices."
+                : "No voices match these filters."
+              : `${matchedVoices.length} voice${matchedVoices.length === 1 ? "" : "s"} → ${
+                  voiceName || matchedVoices[0].name
+                }`}
         </p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className={cn("flex flex-col gap-1.5", !hasRecording && "opacity-50")}>
         <p className="font-bold">Settings</p>
         {SLIDERS.map(({ key, label, hint }) => (
           <label
@@ -264,6 +268,7 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
               max={1}
               step={0.05}
               value={voiceSettings[key]}
+              disabled={!hasRecording}
               onFocus={() => setActiveHint(hint)}
               onChange={(event) => {
                 setVoiceSettings({ ...voiceSettings, [key]: Number(event.target.value) });
@@ -281,14 +286,6 @@ export function FilterPicker({ onApplied }: { onApplied?: () => void } = {}) {
       </div>
 
       <div className="flex items-center gap-4">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={crtEnabled}
-            onChange={(event) => setCrtEnabled(event.target.checked)}
-          />
-          <span>CRT effect</span>
-        </label>
         <label className="flex items-center gap-2">
           <input
             type="checkbox"

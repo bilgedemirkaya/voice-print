@@ -18,7 +18,6 @@ describe("audioStore.reset", () => {
       voiceSettings: { stability: 0.1, similarity_boost: 0.2, style: 0.3 },
       // preferences that should survive a reset:
       originalScene: "starfield",
-      crtEnabled: false,
       accessCode: "SESAME",
       trialRemaining: 5,
     });
@@ -39,8 +38,40 @@ describe("audioStore.reset", () => {
 
     // preferences preserved
     expect(s.originalScene).toBe("starfield");
-    expect(s.crtEnabled).toBe(false);
     expect(s.accessCode).toBe("SESAME");
     expect(s.trialRemaining).toBe(5);
+  });
+});
+
+describe("audioStore.setRecordedBlob", () => {
+  it("clears old-audio conversions but preserves a draft queued before recording", () => {
+    useAudioStore.setState({
+      recordedBlob: null,
+      conversions: [{ voiceId: "v1", voiceName: "A", url: "/a.mp3", sceneId: "mystify", palette }],
+      selectedTakeId: "v1",
+      draft: { voiceId: "v2", voiceName: "B", sceneId: "axolotl", palette },
+      voicePalette: palette,
+      dirty: false,
+    });
+
+    useAudioStore.getState().setRecordedBlob(new Blob(["x"], { type: "audio/webm" }));
+    const s = useAudioStore.getState();
+
+    // old conversions were of the old audio → gone; selection falls back to "You"
+    expect(s.conversions).toEqual([]);
+    expect(s.selectedTakeId).toBe(ORIGINAL_TAKE_ID);
+    // the pending draft + its palette are intent, not stale audio — they survive so the user
+    // doesn't have to re-pick the voice/scene they set before recording
+    expect(s.draft).toEqual({ voiceId: "v2", voiceName: "B", sceneId: "axolotl", palette });
+    expect(s.voicePalette).toEqual(palette);
+    expect(s.dirty).toBe(true);
+  });
+
+  it("keeps no draft + null palette when none was queued", () => {
+    useAudioStore.setState({ draft: null, voicePalette: palette, conversions: [] });
+    useAudioStore.getState().setRecordedBlob(new Blob(["x"], { type: "audio/webm" }));
+    const s = useAudioStore.getState();
+    expect(s.draft).toBeNull();
+    expect(s.voicePalette).toBeNull();
   });
 });

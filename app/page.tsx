@@ -22,7 +22,6 @@ export default function DesktopPage() {
   const [maximized, setMaximized] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
 
-  const crtEnabled = useAudioStore((s) => s.crtEnabled);
   const setDraftVoice = useAudioStore((s) => s.setDraftVoice);
   const reducedMotion = useReducedMotion();
   // Subscribing here kicks off the voices fetch on mount and tracks when it has settled.
@@ -125,7 +124,8 @@ export default function DesktopPage() {
         onStartClick={() => setStartOpen((open) => !open)}
       />
 
-      <CrtOverlay enabled={crtEnabled && !reducedMotion} />
+      {/* CRT scanlines + vignette are always on (no toggle); still suppressed under reduced motion. */}
+      <CrtOverlay enabled={!reducedMotion} />
       <BootSplash />
     </main>
   );

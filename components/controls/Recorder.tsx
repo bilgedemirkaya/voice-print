@@ -168,6 +168,17 @@ export function Recorder({
           </span>
         </div>
 
+        {/* Reassure before they hit record: nothing is kept. (The clip goes to ElevenLabs only to
+            run the transform; the server never writes it to disk.) */}
+        {!recordedBlob && status !== "recording" && (
+          <p
+            className="text-[10px] text-w95-darkgray"
+            title="Your clip is sent to ElevenLabs only to create the transform, and is never stored on our servers."
+          >
+            🔒 We don&apos;t save your recording.
+          </p>
+        )}
+
         {/* The intensity bar grows the controls and shoves the small mobile window's scene up over the
             title bar — and the scene already shows the mic is live — so it's desktop-only. */}
         {status === "recording" && !isMobile && <VuMeter />}
